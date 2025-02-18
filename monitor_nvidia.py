@@ -1,6 +1,7 @@
 import subprocess
 import pandas as pd
 import time
+import sys
 
 def get_nvidia_smi_output():
     result = subprocess.run([
@@ -24,5 +25,5 @@ def log_nvidia_smi_to_csv(logfile, interval=.1):
         time.sleep(interval)
 
 if __name__ == '__main__':
-    logfile = 'nvidia_smi_log.csv'
+    logfile = sys.argv[1] if len(sys.argv) > 1 else 'nvidia_smi_log.csv'
     log_nvidia_smi_to_csv(logfile)

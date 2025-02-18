@@ -1,1 +1,2 @@
-scripts/nvidia_smi_log.csv
+*.csv
+!prompts.csv
