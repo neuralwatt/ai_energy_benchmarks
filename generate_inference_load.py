@@ -9,7 +9,7 @@ gpu_model = "1080ti"
 ai_model = "llama3.2"
 test_time = 240
 test_count = 0
-limiting_mode = "none"  # could also be frequency, agent, or none
+limiting_mode = "none"  # could also be frequency, power, or none
 print_responses = False
 debug = False
 model_list = ["llama3.2"]
@@ -40,9 +40,6 @@ elif limiting_mode == "frequency":
     gpu_frequencies[-1] = valid_gpu_frequencies[-1]
 
     print(f"GPU Frequencies: {gpu_frequencies}")
-
-elif limiting_mode == "agent":
-    co2process = subprocess.Popen(["/home/jovyan/work/CarbonAwareLinux/os/carbon_aware_governor/target/debug/co2cpufrequency", "--gpu-energy-mode", "--update-interval-sec=1"])
 
 else:
     print(f"Power limiting mode set: {limiting_mode}; no initialization action for this mode")
@@ -159,5 +156,3 @@ while True:
 
 subprocess.run(["nvidia-smi", "-rgc"])
 process.terminate()
-if limiting_mode == "agent":
-    co2process.terminate()
