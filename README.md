@@ -27,9 +27,15 @@ This guide provides instructions on managing branches between a public repositor
 1. **Pushing Changes to Public Repo**
     ```bash
     git push public new_branch
-
-
-
+1. **Keeping Repositories in Sync**
+    ```bash
+    git fetch public #Fetch updates from public
+    git merge public/main #Merge updates from public in to private
+    git push private new_branch #push merged changes to private repo
+1. ** Switching branches**
+    ```bash
+    #If in private repo and want to checkout the public
+    git checkout -b public-main public/main
 
 
 
