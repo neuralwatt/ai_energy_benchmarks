@@ -1,6 +1,5 @@
 ## Instructions benchmarking setup, creating a loadline or testing a loadline.
 
-## Quickstart to testing the agent in inference mode
 ### Disk Space
 Ensure your VM has > 60G free space in / to download the model weights. You can configure ollama to put the model weights somewhere else but I haven't covered that in these instructions. If allocating a single OS disk on datacrunch.io one with 100G total capacity is sufficient for this test.
 
