@@ -61,11 +61,9 @@ The file `generate_inference_load.py` is the main inference test driver. There a
 Open `generate_inference_load.py` and ensure the `limiting_mode` parameter is set to "none" for this initial test. This will run a single pass through the test prompts varied across the 3 models and generate the output for that. 
 
 ### Run the test
-Change directory back to CarbonAwareLinux/benchmarks/gpu_load_line
 ```
 python generate_inference_load.py
 ```
-You should see both the agent spew as well as the prompts as they get cycled through.
 
 ### Troubleshooting
 Common mistakes I make
@@ -75,29 +73,7 @@ Common mistakes I make
 
 ### Analyzing the results
 A full pass through the prompts takes around 3 minutes on an h100 if using just one model.
-There are two files which are output: nvidia_smi_log.csv which are the gpu performance metrics and inference_load.csv which are metrics about the prompt. If you have jupyter installed you can use the notebook analyze_agent.ipynb to check the performance of your current run against a default run which has previously been generated. For example if you just ran this test on an h100 the outputs will be inferece.nvidia_smi_log.none_h100_llama3.2_<timestamp>.csv and inference.load.none_h100_llama3.2_<timestamp>.csv.  
-
-## Generating the load line
-Create the conda environment
-```
-conda env create -f gpu_load_line_env.yml
-conda activate gpu_load_line
-```
-
-Generate monitor the data and run the test
-
-This has a dependency on monitor_nvidia.py (which itself has a dependency on nvidia-smi so make sure nvidia-smi is working as it's not currently installed in the conda env).
-```
-python generate_inference_load.py
-```
-
-Create the analysis images by running this notebook
-```
-jupyter notebook generate_load_line.ipynb
-```
-
-TODO
-* Still need to export the optimization data for the agent
+There are two files which are output: nvidia_smi_log.csv which are the gpu performance metrics and inference_load.csv which are metrics about the prompt. If you have jupyter installed you can use the notebook analyze_agent.ipynb to check the performance of your current run against a default run which has previously been generated. For example if you just ran this test on an h100 the outputs will be inferece.nvidia_smi_log.none_h100_llama3.2_<timestamp>.csv and inference.load.none_h100_llama3.2_<timestamp>.csv.  You need to set a few parameters at the top of the notebook to indicate the files you are anayzing.
 
 ## Windows instructions
 
