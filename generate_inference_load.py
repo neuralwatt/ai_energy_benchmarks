@@ -57,6 +57,20 @@ if debug:
 variation_count = 0
 test_count = 0
 
+# Determine if running in Docker
+def is_running_in_docker():
+    try:
+        with open('/proc/1/cgroup', 'rt') as f:
+            return 'docker' in f.read()
+    except Exception:
+        return False
+
+# Set the endpoint based on the environment
+if is_running_in_docker():
+    endpoint = "http://ollama:11434/api/generate"
+else:
+    endpoint = "http://localhost:11434/api/generate"
+
 while True:
     if limiting_mode == "power":
         if variation_count >= len(power_limits):
@@ -93,7 +107,7 @@ while True:
         print(f"{i} of {len(prompts)} Prompt: {prompt}")
 
         query_start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-        response = subprocess.check_output(["curl", "-X", "POST", "http://localhost:11434/api/generate", "-H", "Content-Type: application/json", "-d", json.dumps(body)])
+        response = subprocess.check_output(["curl", "-X", "POST", endpoint, "-H", "Content-Type: application/json", "-d", json.dumps(body)])
         query_end_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
 
         response_array = [json.loads(line) for line in response.decode().split("\n") if line]
