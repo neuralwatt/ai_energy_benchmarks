@@ -1,3 +1,27 @@
+"""
+generate_inference_load.py
+
+This script generates inference load on a specified AI model using GPU resources.
+It meausres the gpu utilization and power consumption during the inference and is dependent on ollama an dnvidia-smi.
+It supports different limiting modes such as power and frequency to control the GPU behavior.
+The script reads prompts from a CSV file and sends them to an endpoint for inference.
+The results are logged and saved in CSV format.
+
+Usage:
+    python generate_inference_load.py
+
+Configuration (set inline):
+    - gpu_model: The model of the GPU being used.
+    - ai_model: The AI model to be used for inference.
+    - test_time: Duration of each test in seconds.
+    - limiting_mode: Mode to limit GPU resources (none, frequency, power).
+    - print_responses: Flag to print LLM responses to the console.
+    - debug: Flag to enable debug mode with shorter test times and limited variations.
+    - model_list: List of AI models to cycle through for inference.
+
+Copyright (c) 2025 NeuralWatt Corp. All rights reserved.
+"""
+
 import subprocess
 import time
 import json
