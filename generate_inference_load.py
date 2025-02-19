@@ -9,7 +9,7 @@ gpu_model = "1080ti"
 ai_model = "llama3.2"
 test_time = 240
 test_count = 0
-limiting_mode = "none"  # could also be frequency, agent, or none
+limiting_mode = "none"  # could also be frequency, power, or none
 print_responses = False
 debug = False
 model_list = ["llama3.2"]
@@ -41,9 +41,6 @@ elif limiting_mode == "frequency":
 
     print(f"GPU Frequencies: {gpu_frequencies}")
 
-elif limiting_mode == "agent":
-    co2process = subprocess.Popen(["/home/jovyan/work/CarbonAwareLinux/os/carbon_aware_governor/target/debug/co2cpufrequency", "--gpu-energy-mode", "--update-interval-sec=1"])
-
 else:
     print(f"Power limiting mode set: {limiting_mode}; no initialization action for this mode")
 
@@ -59,6 +56,20 @@ if debug:
 
 variation_count = 0
 test_count = 0
+
+# Determine if running in Docker
+def is_running_in_docker():
+    try:
+        with open('/proc/1/cgroup', 'rt') as f:
+            return 'docker' in f.read()
+    except Exception:
+        return False
+
+# Set the endpoint based on the environment
+if is_running_in_docker():
+    endpoint = "http://ollama:11434/api/generate"
+else:
+    endpoint = "http://localhost:11434/api/generate"
 
 while True:
     if limiting_mode == "power":
@@ -96,7 +107,7 @@ while True:
         print(f"{i} of {len(prompts)} Prompt: {prompt}")
 
         query_start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-        response = subprocess.check_output(["curl", "-X", "POST", "http://localhost:11434/api/generate", "-H", "Content-Type: application/json", "-d", json.dumps(body)])
+        response = subprocess.check_output(["curl", "-X", "POST", endpoint, "-H", "Content-Type: application/json", "-d", json.dumps(body)])
         query_end_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
 
         response_array = [json.loads(line) for line in response.decode().split("\n") if line]
@@ -159,5 +170,3 @@ while True:
 
 subprocess.run(["nvidia-smi", "-rgc"])
 process.terminate()
-if limiting_mode == "agent":
-    co2process.terminate()
