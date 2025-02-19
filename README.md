@@ -3,6 +3,31 @@
 ### Disk Space
 Ensure your VM has > 60G free space in / to download the model weights. You can configure ollama to put the model weights somewhere else but I haven't covered that in these instructions. If allocating a single OS disk on datacrunch.io one with 100G total capacity is sufficient for this test.
 
+## Running Everything with Docker
+
+To run the application using Docker, follow these steps:
+
+1. **Build the Docker image**:
+    ```sh
+    docker-compose build
+    ```
+
+2. **Start the services**:
+    ```sh
+    docker-compose up
+    ```
+
+3. **Run the benchmarks**:
+    The benchmarks will automatically start running as part of the `ai_energy_benchmarks` service.
+
+4. **Stop the services**:
+    Once the benchmarks are complete, you can stop the services with:
+    ```sh
+    docker-compose down
+    ```
+
+## Running each part seperately
+
 ### Install on Linux using Docker
 1. Ensure Docker is running
 1. Install nvidia container toolkit if not already installed--if you created a VM on datacrunch.io or another ML focused gpu provider it's likely already installed and running.
@@ -88,3 +113,5 @@ $body = @{
 }
 
 Invoke-RestMethod -Uri "http://localhost:11434/api/generate" -Method Post -Body ($body | ConvertTo-Json) -ContentType "application/json"
+```
+
