@@ -14,4 +14,4 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Command to run the application
-CMD ["sh", "-c", "curl -X POST http://ollama:11434/api/pull -d '{\"model\": \"llama3.2\"}' && python generate_inference_load.py"]
+CMD ["python", "generate_inference_load.py"]
