@@ -40,5 +40,9 @@ jobs:
             ghcr.io/${{ github.repository }}:latest
             ghcr.io/${{ github.repository }}:${{ github.ref_name }}
             ghcr.io/${{ github.repository }}:${{ steps.extract_version.outputs.version }}
-            ${{ github.ref == 'refs/heads/main' && 'ghcr.io/${{ github.repository }}:latest' || '' }}
-            ${{ github.ref == 'refs/heads/ppe' && 'ghcr.io/${{ github.repository }}:latest_ppe' || '' }}
+      - name: Tag for main branch
+        if: github.ref == 'refs/heads/main'
+        run: echo "::set-output name=tag::ghcr.io/${{ github.repository }}:latest"
+      - name: Tag for ppe branch
+        if: github.ref == 'refs/heads/ppe'
+        run: echo "::set-output name=tag::ghcr.io/${{ github.repository }}:latest_ppe"
