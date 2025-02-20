@@ -25,19 +25,17 @@ services:
       }'
 
   ai_energy_benchmarks:
-    build: .
+    image: ghcr.io/neuralwatt/ai_energy_benchmarks:latest
+    build:
+      context: .
     volumes:
       - .:/app
-    command: python generate_inference_load.py
     deploy:
       resources:
         reservations:
           devices:
             - capabilities: [gpu]
     runtime: nvidia
-    depends_on:
-      curl_command:
-        condition: service_completed_successfully
 
 volumes:
   ollama:

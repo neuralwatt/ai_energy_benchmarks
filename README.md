@@ -5,26 +5,44 @@ Ensure your VM has > 60G free space in / to download the model weights. You can 
 
 ## Running Everything with Docker
 
-To run the application using Docker, follow these steps:
+To start the services defined in the `docker-compose.yml` file, you have two options: `docker-compose up` or `docker-compose build`.
 
-1. **Build the Docker image**:
-    ```sh
-    docker-compose build
-    ```
+### Using `docker-compose up`
 
-2. **Start the services**:
-    ```sh
-    docker-compose up
-    ```
+The `docker-compose up` command will start and run all the services defined in the `docker-compose.yml` file. It will download the image from the github container registry for th benchmarks. 
 
-3. **Run the benchmarks**:
-    The benchmarks will automatically start running as part of the `ai_energy_benchmarks` service.
+```sh
+docker-compose up
+```
 
-4. **Stop the services**:
-    Once the benchmarks are complete, you can stop the services with:
-    ```sh
-    docker-compose down
-    ```
+This command is useful when you want to start the entire application stack from source with a single command. It will also rebuild the images if there are any changes in the Dockerfiles or the context.
+
+### Using `docker-compose build`
+
+The `docker-compose build` command will build the images defined in the `docker-compose.yml` file without starting the containers.
+
+```sh
+docker-compose build
+```
+
+This command is useful when you want to build the images separately before starting the containers. You can then start the containers using:
+
+```sh
+docker-compose up
+```
+
+or
+
+```sh
+docker-compose up --no-build
+```
+
+The `--no-build` flag ensures that the images are not rebuilt if they already exist.
+
+### Summary
+
+- Use `docker-compose up` to build and start the services in one step.
+- Use `docker-compose build` to build the images separately, and then use `docker-compose up` to start the services.
 
 ## Running each part seperately
 
@@ -113,5 +131,4 @@ $body = @{
 }
 
 Invoke-RestMethod -Uri "http://localhost:11434/api/generate" -Method Post -Body ($body | ConvertTo-Json) -ContentType "application/json"
-```
 
