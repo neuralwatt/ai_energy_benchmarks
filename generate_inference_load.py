@@ -1,3 +1,27 @@
+"""
+generate_inference_load.py
+
+This script generates inference load on a specified AI model using GPU resources.
+It meausres the gpu utilization and power consumption during the inference and is dependent on ollama an dnvidia-smi.
+It supports different limiting modes such as power and frequency to control the GPU behavior.
+The script reads prompts from a CSV file and sends them to an endpoint for inference.
+The results are logged and saved in CSV format.
+
+Usage:
+    python generate_inference_load.py
+
+Configuration (set inline):
+    - gpu_model: The model of the GPU being used.
+    - ai_model: The AI model to be used for inference.
+    - test_time: Duration of each test in seconds.
+    - limiting_mode: Mode to limit GPU resources (none, frequency, power).
+    - print_responses: Flag to print LLM responses to the console.
+    - debug: Flag to enable debug mode with shorter test times and limited variations.
+    - model_list: List of AI models to cycle through for inference.
+
+Copyright (c) 2025 NeuralWatt Corp. All rights reserved.
+"""
+
 import subprocess
 import time
 import json
@@ -13,6 +37,7 @@ limiting_mode = "none"  # could also be frequency, power, or none
 print_responses = False
 debug = False
 model_list = ["llama3.2"]
+in_docker = True
 
 # Read prompts from file
 with open('prompts.csv', 'r') as file:
@@ -21,8 +46,6 @@ with open('prompts.csv', 'r') as file:
 
 file_id = f"{limiting_mode}_{gpu_model}_{ai_model}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 # Setup
-subprocess.run(["nvidia-smi", "-rgc"])
-
 if limiting_mode == "power":
     min_power_limit = int(subprocess.check_output("nvidia-smi -q -d POWER | grep 'Min Power Limit' | awk '{print $5}'", shell=True).strip()) / 100
     max_power_limit = int(subprocess.check_output("nvidia-smi -q -d POWER | grep 'Max Power Limit' | awk '{print $5}'", shell=True).strip()) / 100
@@ -57,18 +80,13 @@ if debug:
 variation_count = 0
 test_count = 0
 
-# Determine if running in Docker
-def is_running_in_docker():
-    try:
-        with open('/proc/1/cgroup', 'rt') as f:
-            return 'docker' in f.read()
-    except Exception:
-        return False
 
 # Set the endpoint based on the environment
-if is_running_in_docker():
+if in_docker:
+    print("Running in Docker")
     endpoint = "http://ollama:11434/api/generate"
 else:
+    print("Running locally")
     endpoint = "http://localhost:11434/api/generate"
 
 while True:
@@ -168,5 +186,4 @@ while True:
 
     variation_count += 1
 
-subprocess.run(["nvidia-smi", "-rgc"])
 process.terminate()

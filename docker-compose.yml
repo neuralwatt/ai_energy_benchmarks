@@ -3,12 +3,13 @@ services:
   ollama:
     image: ollama/ollama
     container_name: ollama
-    runtime: nvidia
     deploy:
       resources:
         reservations:
           devices:
-            - capabilities: [gpu]
+            - driver: nvidia
+              count: all
+              capabilities: [gpu] 
     volumes:
       - ollama:/root/.ollama
     ports:
@@ -16,28 +17,27 @@ services:
 
   curl_command:
     image: curlimages/curl:latest
-    depends_on:
-      ollama:
-        condition: service_started
     command: >
       curl -X POST http://ollama:11434/api/pull -d '{
         "model": "llama3.2"
       }'
 
   ai_energy_benchmarks:
-    build: .
+    image: ghcr.io/neuralwatt/ai_energy_benchmarks:latest
+    build:
+      context: .
     volumes:
       - .:/app
-    command: python generate_inference_load.py
+    depends_on:
+      curl_command:
+        condition: service_completed_successfully
     deploy:
       resources:
         reservations:
           devices:
-            - capabilities: [gpu]
-    runtime: nvidia
-    depends_on:
-      curl_command:
-        condition: service_completed_successfully
+            - driver: nvidia
+              count: all
+              capabilities: [gpu] 
 
 volumes:
   ollama:
