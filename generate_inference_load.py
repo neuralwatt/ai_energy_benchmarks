@@ -37,6 +37,7 @@ limiting_mode = "none"  # could also be frequency, power, or none
 print_responses = False
 debug = False
 model_list = ["llama3.2"]
+in_docker = True
 
 # Read prompts from file
 with open('prompts.csv', 'r') as file:
@@ -45,8 +46,6 @@ with open('prompts.csv', 'r') as file:
 
 file_id = f"{limiting_mode}_{gpu_model}_{ai_model}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 # Setup
-subprocess.run(["nvidia-smi", "-rgc"])
-
 if limiting_mode == "power":
     min_power_limit = int(subprocess.check_output("nvidia-smi -q -d POWER | grep 'Min Power Limit' | awk '{print $5}'", shell=True).strip()) / 100
     max_power_limit = int(subprocess.check_output("nvidia-smi -q -d POWER | grep 'Max Power Limit' | awk '{print $5}'", shell=True).strip()) / 100
@@ -81,18 +80,13 @@ if debug:
 variation_count = 0
 test_count = 0
 
-# Determine if running in Docker
-def is_running_in_docker():
-    try:
-        with open('/proc/1/cgroup', 'rt') as f:
-            return 'docker' in f.read()
-    except Exception:
-        return False
 
 # Set the endpoint based on the environment
-if is_running_in_docker():
+if in_docker:
+    print("Running in Docker")
     endpoint = "http://ollama:11434/api/generate"
 else:
+    print("Running locally")
     endpoint = "http://localhost:11434/api/generate"
 
 while True:
@@ -192,5 +186,4 @@ while True:
 
     variation_count += 1
 
-subprocess.run(["nvidia-smi", "-rgc"])
 process.terminate()

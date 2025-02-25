@@ -3,12 +3,13 @@ services:
   ollama:
     image: ollama/ollama
     container_name: ollama
-    runtime: nvidia
     deploy:
       resources:
         reservations:
           devices:
-            - capabilities: [gpu]
+            - driver: nvidia
+              count: all
+              capabilities: [gpu] 
     volumes:
       - ollama:/root/.ollama
     ports:
@@ -16,9 +17,6 @@ services:
 
   curl_command:
     image: curlimages/curl:latest
-    depends_on:
-      ollama:
-        condition: service_started
     command: >
       curl -X POST http://ollama:11434/api/pull -d '{
         "model": "llama3.2"
@@ -30,12 +28,16 @@ services:
       context: .
     volumes:
       - .:/app
+    depends_on:
+      curl_command:
+        condition: service_completed_successfully
     deploy:
       resources:
         reservations:
           devices:
-            - capabilities: [gpu]
-    runtime: nvidia
+            - driver: nvidia
+              count: all
+              capabilities: [gpu] 
 
 volumes:
   ollama:
