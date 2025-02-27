@@ -20,6 +20,7 @@ Command-line options:
     --model-list: Comma-separated list of AI models to cycle through for inference.
     --output-dir: Directory where output files will be stored.
     --in-docker: Flag to indicate running in Docker container.
+    --no-fixed-output: Flag to disable fixed temperature and seed settings.
 
 Copyright (c) 2025 NeuralWatt Corp. All rights reserved.
 """
@@ -44,6 +45,7 @@ parser.add_argument('--print-responses', action='store_true', help='Print LLM re
 parser.add_argument('--debug', action='store_true', help='Enable debug mode with shorter test times and limited variations')
 parser.add_argument('--output-dir', default='benchmark_output', help='Directory where output files will be stored')
 parser.add_argument('--in-docker', action='store_true', help='Indicate running in Docker container')
+parser.add_argument('--no-fixed-output', action='store_true', help='Disable fixed temperature and seed settings')
 
 args = parser.parse_args()
 
@@ -57,6 +59,7 @@ print_responses = args.print_responses
 debug = args.debug
 in_docker = args.in_docker
 output_dir = args.output_dir
+no_fixed_output = args.no_fixed_output
 
 # Create output directory if it doesn't exist
 if not os.path.exists(output_dir):
@@ -147,6 +150,12 @@ while True:
             "model": ai_model, 
             "prompt": prompt
         }
+        
+        # Add temperature and seed for reproducible output unless no-fixed-output is specified
+        if not no_fixed_output:
+            body["temperature"] = 0
+            body["seed"] = 42
+            
         print(f"{i} of {len(prompts)} Prompt: {prompt}")
 
         query_start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]

@@ -42,6 +42,7 @@ services:
       - DEBUG=${DEBUG:-false}
       - OUTPUT_DIR=${OUTPUT_DIR:-benchmark_output}
       - IN_DOCKER=${IN_DOCKER:-true}
+      - NO_FIXED_OUTPUT=${NO_FIXED_OUTPUT:-false}
     deploy:
       resources:
         reservations:
