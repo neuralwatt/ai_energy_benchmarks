@@ -8,17 +8,18 @@ The script reads prompts from a CSV file and sends them to an endpoint for infer
 The results are logged and saved in CSV format.
 
 Usage:
-    python generate_inference_load.py
+    python generate_inference_load.py [options]
 
-Configuration (set inline):
-    - gpu_model: The model of the GPU being used.
-    - ai_model: The AI model to be used for inference.
-    - test_time: Duration of each test in seconds.
-    - limiting_mode: Mode to limit GPU resources (none, frequency, power).
-    - print_responses: Flag to print LLM responses to the console.
-    - debug: Flag to enable debug mode with shorter test times and limited variations.
-    - model_list: List of AI models to cycle through for inference.
-    - output_dir: Directory where output files will be stored.
+Command-line options:
+    --gpu-model: The model of the GPU being used.
+    --ai-model: The AI model to be used for inference.
+    --test-time: Duration of each test in seconds.
+    --limiting-mode: Mode to limit GPU resources (none, frequency, power).
+    --print-responses: Flag to print LLM responses to the console.
+    --debug: Flag to enable debug mode with shorter test times and limited variations.
+    --model-list: Comma-separated list of AI models to cycle through for inference.
+    --output-dir: Directory where output files will be stored.
+    --in-docker: Flag to indicate running in Docker container.
 
 Copyright (c) 2025 NeuralWatt Corp. All rights reserved.
 """
@@ -28,19 +29,34 @@ import time
 import json
 import csv
 import os
+import argparse
 from datetime import datetime
 import pandas as pd
 
-gpu_model = "1080ti"
-ai_model = "llama3.2"
-test_time = 240
+# Parse command-line arguments
+parser = argparse.ArgumentParser(description='Generate inference load on an AI model')
+parser.add_argument('--gpu-model', default='h100', help='The model of the GPU being used')
+parser.add_argument('--ai-model', default='llama3.2', help='The AI model to be used for inference')
+parser.add_argument('--test-time', type=int, default=240, help='Duration of each test in seconds')
+parser.add_argument('--limiting-mode', default='none', choices=['none', 'frequency', 'power'], 
+                    help='Mode to limit GPU resources (none, frequency, power)')
+parser.add_argument('--print-responses', action='store_true', help='Print LLM responses to the console')
+parser.add_argument('--debug', action='store_true', help='Enable debug mode with shorter test times and limited variations')
+parser.add_argument('--output-dir', default='benchmark_output', help='Directory where output files will be stored')
+parser.add_argument('--in-docker', action='store_true', help='Indicate running in Docker container')
+
+args = parser.parse_args()
+
+# Set parameters from command-line arguments
+gpu_model = args.gpu_model
+ai_model = args.ai_model
+test_time = args.test_time
 test_count = 0
-limiting_mode = "none"  # could also be frequency, power, or none
-print_responses = False
-debug = False
-model_list = ["llama3.2"]
-in_docker = True
-output_dir = "benchmark_output"  # Directory for output files
+limiting_mode = args.limiting_mode
+print_responses = args.print_responses
+debug = args.debug
+in_docker = args.in_docker
+output_dir = args.output_dir
 
 # Create output directory if it doesn't exist
 if not os.path.exists(output_dir):
@@ -128,7 +144,7 @@ while True:
 
     for i, prompt in enumerate(prompts):
         body = {
-            "model": model_list[i % len(model_list)],
+            "model": ai_model, 
             "prompt": prompt
         }
         print(f"{i} of {len(prompts)} Prompt: {prompt}")

@@ -17,6 +17,28 @@ docker-compose up
 
 This command is useful when you want to start the entire application stack from source with a single command. It will also rebuild the images if there are any changes in the Dockerfiles or the context.
 
+### Configure Docker Environment Variables
+
+You can configure the benchmark parameters by modifying the environment variables in the `docker-compose.yml` file:
+
+```yaml
+environment:
+  - GPU_MODEL=h100
+  - AI_MODEL=llama3.2
+  - TEST_TIME=240
+  - LIMITING_MODE=none
+  - PRINT_RESPONSES=False
+  - DEBUG=False
+  - OUTPUT_DIR=benchmark_output
+  - IN_DOCKER=True
+```
+
+Or you can override them on the command line:
+
+```sh
+GPU_MODEL=h100 AI_MODEL=llama3.2 docker-compose up
+```
+
 ### Using `docker-compose build`
 
 The `docker-compose build` command will build the images defined in the `docker-compose.yml` file without starting the containers.
@@ -45,6 +67,33 @@ The `--no-build` flag ensures that the images are not rebuilt if they already ex
 - Use `docker-compose build` to build the images separately, and then use `docker-compose up` to start the services.
 
 ## Running each part seperately
+
+### Command Line Options
+
+When running the benchmark script directly, you can use the following command-line options:
+
+```
+usage: generate_inference_load.py [-h] [--gpu-model GPU_MODEL] [--ai-model AI_MODEL] [--test-time TEST_TIME]
+                                [--limiting-mode {none,frequency,power,agent}] [--print-responses] [--debug]
+                                [--model-list MODEL_LIST] [--output-dir OUTPUT_DIR] [--in-docker]
+
+Generate inference load on an AI model
+
+options:
+  -h, --help            show this help message and exit
+  --gpu-model GPU_MODEL
+                        The model of the GPU being used (default: 1080ti)
+  --ai-model AI_MODEL   The AI model to be used for inference (default: llama3.2)
+  --test-time TEST_TIME
+                        Duration of each test in seconds (default: 240)
+  --limiting-mode {none,frequency,power}
+                        Mode to limit GPU resources (default: none)
+  --print-responses     Print LLM responses to the console
+  --debug               Enable debug mode with shorter test times and limited variations
+  --output-dir OUTPUT_DIR
+                        Directory where output files will be stored (default: benchmark_output)
+  --in-docker           Indicate running in Docker container
+```
 
 ### Install on Linux using Docker
 1. Ensure Docker is running

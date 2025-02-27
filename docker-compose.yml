@@ -17,9 +17,11 @@ services:
 
   curl_command:
     image: curlimages/curl:latest
+    environment:
+      - AI_MODEL=llama3.2
     command: >
       curl -X POST http://ollama:11434/api/pull -d '{
-        "model": "llama3.2"
+        "model": "${AI_MODEL}"
       }'
 
   ai_energy_benchmarks:
@@ -31,6 +33,15 @@ services:
     depends_on:
       curl_command:
         condition: service_completed_successfully
+    environment:
+      - GPU_MODEL=${GPU_MODEL:-h100}
+      - AI_MODEL=${AI_MODEL:-llama3.2}
+      - TEST_TIME=${TEST_TIME:-240}
+      - LIMITING_MODE=${LIMITING_MODE:-none}
+      - PRINT_RESPONSES=${PRINT_RESPONSES:-false}
+      - DEBUG=${DEBUG:-false}
+      - OUTPUT_DIR=${OUTPUT_DIR:-benchmark_output}
+      - IN_DOCKER=${IN_DOCKER:-true}
     deploy:
       resources:
         reservations:
