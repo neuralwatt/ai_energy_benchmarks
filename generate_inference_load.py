@@ -18,6 +18,7 @@ Configuration (set inline):
     - print_responses: Flag to print LLM responses to the console.
     - debug: Flag to enable debug mode with shorter test times and limited variations.
     - model_list: List of AI models to cycle through for inference.
+    - output_dir: Directory where output files will be stored.
 
 Copyright (c) 2025 NeuralWatt Corp. All rights reserved.
 """
@@ -26,6 +27,7 @@ import subprocess
 import time
 import json
 import csv
+import os
 from datetime import datetime
 import pandas as pd
 
@@ -38,6 +40,12 @@ print_responses = False
 debug = False
 model_list = ["llama3.2"]
 in_docker = True
+output_dir = "benchmark_output"  # Directory for output files
+
+# Create output directory if it doesn't exist
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
+    print(f"Created output directory: {output_dir}")
 
 # Read prompts from file
 with open('prompts.csv', 'r') as file:
@@ -67,7 +75,8 @@ elif limiting_mode == "frequency":
 else:
     print(f"Power limiting mode set: {limiting_mode}; no initialization action for this mode")
 
-process = subprocess.Popen(["python", "monitor_nvidia.py", f"inference.nvidia_smi_log.{file_id}.csv"])
+nvidia_smi_log_path = os.path.join(output_dir, f"inference.nvidia_smi_log.{file_id}.csv")
+process = subprocess.Popen(["python", "monitor_nvidia.py", nvidia_smi_log_path, output_dir])
 monitor_id = process.pid
 
 if debug:
@@ -174,7 +183,8 @@ while True:
                 "LongOrShortPrompt": "Long" if i % 2 == 0 else "Short",
                 "Model": body["model"],
             }
-            with open(f"inference.load.{file_id}.csv", "a", newline='') as csvfile:
+            inference_log_path = os.path.join(output_dir, f"inference.load.{file_id}.csv")
+            with open(inference_log_path, "a", newline='') as csvfile:
                 writer = csv.DictWriter(csvfile, fieldnames=csv_output.keys())
                 if test_count == 0:
                     writer.writeheader()
