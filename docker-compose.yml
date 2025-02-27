@@ -27,7 +27,7 @@ services:
     build:
       context: .
     volumes:
-      - .:/app
+      - ./benchmark_output:/app/benchmark_output
     depends_on:
       curl_command:
         condition: service_completed_successfully
