@@ -3,12 +3,13 @@ services:
   ollama:
     image: ollama/ollama
     container_name: ollama
-    runtime: nvidia
     deploy:
       resources:
         reservations:
           devices:
-            - capabilities: [gpu]
+            - driver: nvidia
+              count: all
+              capabilities: [gpu] 
     volumes:
       - ollama:/root/.ollama
     ports:
@@ -16,12 +17,11 @@ services:
 
   curl_command:
     image: curlimages/curl:latest
-    depends_on:
-      ollama:
-        condition: service_started
+    environment:
+      - AI_MODEL=llama3.2
     command: >
       curl -X POST http://ollama:11434/api/pull -d '{
-        "model": "llama3.2"
+        "model": "${AI_MODEL}"
       }'
 
   ai_energy_benchmarks:
@@ -29,13 +29,27 @@ services:
     build:
       context: .
     volumes:
-      - .:/app
+      - ./benchmark_output:/app/benchmark_output
+    depends_on:
+      curl_command:
+        condition: service_completed_successfully
+    environment:
+      - GPU_MODEL=${GPU_MODEL:-h100}
+      - AI_MODEL=${AI_MODEL:-llama3.2}
+      - TEST_TIME=${TEST_TIME:-240}
+      - LIMITING_MODE=${LIMITING_MODE:-none}
+      - PRINT_RESPONSES=${PRINT_RESPONSES:-false}
+      - DEBUG=${DEBUG:-false}
+      - OUTPUT_DIR=${OUTPUT_DIR:-benchmark_output}
+      - IN_DOCKER=${IN_DOCKER:-true}
+      - NO_FIXED_OUTPUT=${NO_FIXED_OUTPUT:-false}
     deploy:
       resources:
         reservations:
           devices:
-            - capabilities: [gpu]
-    runtime: nvidia
+            - driver: nvidia
+              count: all
+              capabilities: [gpu] 
 
 volumes:
   ollama:
