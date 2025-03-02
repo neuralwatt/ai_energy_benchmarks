@@ -1,2 +1,3 @@
 *.csv
 !prompts.csv
+benchmark_output/*.log
