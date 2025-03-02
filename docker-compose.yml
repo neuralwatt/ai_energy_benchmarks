@@ -44,6 +44,8 @@ services:
       - IN_DOCKER=${IN_DOCKER:-true}
       - NO_FIXED_OUTPUT=${NO_FIXED_OUTPUT:-false}
       - DEMO_MODE=${DEMO_MODE:-}
+      - LOG_PROMPTS=${LOG_PROMPTS:-false}
+      - LOG_FILE=${LOG_FILE:-prompts_and_responses.log}
     command: >
       bash -c "python generate_inference_load.py 
       --gpu-model $${GPU_MODEL} 
@@ -55,7 +57,8 @@ services:
       $${PRINT_RESPONSES:+--print-responses} 
       $${DEBUG:+--debug} 
       $${NO_FIXED_OUTPUT:+--no-fixed-output} 
-      $${DEMO_MODE:+--demo-mode $${DEMO_MODE}}"
+      $${DEMO_MODE:+--demo-mode $${DEMO_MODE}} 
+      $${LOG_PROMPTS:+--log-file $${OUTPUT_DIR}/$${LOG_FILE}}"
     deploy:
       resources:
         reservations:
