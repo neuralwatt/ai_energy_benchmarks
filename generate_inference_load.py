@@ -48,8 +48,10 @@ parser.add_argument('--output-dir', default='benchmark_output', help='Directory 
 parser.add_argument('--in-docker', action='store_true', help='Indicate running in Docker container')
 parser.add_argument('--no-fixed-output', action='store_true', help='Disable fixed temperature and seed settings')
 parser.add_argument('--demo-mode', default=None, help='Number of prompts to run or path to custom prompt file')
+parser.add_argument('--log-file', help='File to log prompts and responses')
 
 args = parser.parse_args()
+log_file = args.log_file
 
 # Set parameters from command-line arguments
 gpu_model = args.gpu_model
@@ -154,6 +156,13 @@ if debug:
 variation_count = 0
 test_count = 0
 
+# Function to log prompts and responses
+def log_interaction(prompt, response, log_file):
+    if log_file:
+        with open(log_file, 'a', encoding='utf-8') as f:
+            f.write(f"PROMPT: {prompt}\n")
+            f.write(f"RESPONSE: {response}\n")
+            f.write("-" * 80 + "\n")
 
 # Set the endpoint based on the environment
 if in_docker:
@@ -210,9 +219,15 @@ while True:
 
         response_array = [json.loads(line) for line in response.decode().split("\n") if line]
 
-        if print_responses:
+        if print_responses or log_file:
+            full_response = ""
             for res in response_array[:-1]:
-                print(res["response"], end="")
+                if print_responses:
+                    print(res["response"], end="")
+                full_response += res["response"]
+            
+            if log_file:
+                log_interaction(prompt, full_response, log_file)
 
         try:
             final_response = next(res for res in response_array if res.get("done"))

@@ -23,7 +23,9 @@ ENV GPU_MODEL="h100" \
     OUTPUT_DIR="benchmark_output" \
     IN_DOCKER="true" \
     NO_FIXED_OUTPUT="false" \
-    DEMO_MODE="false"
+    DEMO_MODE="false" \
+    LOG_PROMPTS="false" \
+    LOG_FILE="prompts_and_responses.log"
 
 # Command to run the application with environment variables
 CMD python generate_inference_load.py \
@@ -36,4 +38,5 @@ CMD python generate_inference_load.py \
     --output-dir $OUTPUT_DIR \
     $([ "$IN_DOCKER" = "true" ] && echo "--in-docker") \
     $([ "$NO_FIXED_OUTPUT" = "true" ] && echo "--no-fixed-output") \
-    $([ "$DEMO_MODE" = "true" ] && echo "--demo-mode 3")
+    $([ "$DEMO_MODE" = "true" ] && echo "--demo-mode 3") \
+    $([ "$LOG_PROMPTS" = "true" ] && echo "--log-file ${OUTPUT_DIR}/${LOG_FILE}")
