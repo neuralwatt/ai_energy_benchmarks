@@ -21,6 +21,7 @@ Command-line options:
     --output-dir: Directory where output files will be stored.
     --in-docker: Flag to indicate running in Docker container.
     --no-fixed-output: Flag to disable fixed temperature and seed settings.
+    --demo-mode: Number of prompts to run or path to custom prompt file.
 
 Copyright (c) 2025 NeuralWatt Corp. All rights reserved.
 """
@@ -46,8 +47,11 @@ parser.add_argument('--debug', action='store_true', help='Enable debug mode with
 parser.add_argument('--output-dir', default='benchmark_output', help='Directory where output files will be stored')
 parser.add_argument('--in-docker', action='store_true', help='Indicate running in Docker container')
 parser.add_argument('--no-fixed-output', action='store_true', help='Disable fixed temperature and seed settings')
+parser.add_argument('--demo-mode', default=None, help='Number of prompts to run or path to custom prompt file')
+parser.add_argument('--log-file', help='File to log prompts and responses')
 
 args = parser.parse_args()
+log_file = args.log_file
 
 # Set parameters from command-line arguments
 gpu_model = args.gpu_model
@@ -60,16 +64,60 @@ debug = args.debug
 in_docker = args.in_docker
 output_dir = args.output_dir
 no_fixed_output = args.no_fixed_output
+demo_mode = args.demo_mode
 
 # Create output directory if it doesn't exist
 if not os.path.exists(output_dir):
-    os.makedirs(output_dir)
-    print(f"Created output directory: {output_dir}")
+    try:
+        os.makedirs(output_dir)
+        print(f"Created output directory: {output_dir}")
+    except Exception as e:
+        print(f"Error creating output directory {output_dir}: {e}")
+        print(f"Current working directory: {os.getcwd()}")
+        print(f"Directory listing: {os.listdir('.')}")
 
-# Read prompts from file
-with open('prompts.csv', 'r') as file:
-    prompts = file.read().strip().split('",\n"')
-    prompts = [prompt.strip('"') for prompt in prompts]
+print(f"Output directory path: {os.path.abspath(output_dir)}")
+print(f"Output directory exists: {os.path.exists(output_dir)}")
+print(f"Output directory is writable: {os.access(output_dir, os.W_OK)}")
+
+# Read prompts from file - modified to handle demo mode
+prompts_file = 'prompts.csv'
+
+print(f"**Demo mode: {demo_mode}")
+# Handle demo-mode parameter
+if demo_mode:
+    if os.path.isfile(demo_mode):
+        # If demo_mode is a valid file path, use it as the prompts file
+        prompts_file = demo_mode
+        print(f"Using custom prompt file: {prompts_file}")
+    elif demo_mode.isdigit():
+        # If demo_mode is a number, limit the number of prompts used
+        with open(prompts_file, 'r') as file:
+            all_prompts = file.read().strip().split('",\n"')
+            all_prompts = [prompt.strip('"') for prompt in all_prompts]
+        
+        num_prompts = min(int(demo_mode), len(all_prompts))
+        prompts = all_prompts[:num_prompts]
+        print(f"Running in demo mode with {num_prompts} prompts")
+    elif demo_mode.lower() in ['true', 'yes']:
+        # If demo_mode is true or yes, use a default limited number of prompts (3)
+        DEFAULT_DEMO_PROMPTS = 3
+        with open(prompts_file, 'r') as file:
+            all_prompts = file.read().strip().split('",\n"')
+            all_prompts = [prompt.strip('"') for prompt in all_prompts]
+        
+        prompts = all_prompts[:DEFAULT_DEMO_PROMPTS]
+        print(f"Running in demo mode with {DEFAULT_DEMO_PROMPTS} prompts")
+    else:
+        print(f"Invalid demo-mode value: {demo_mode}. Using default prompt file.")
+        with open(prompts_file, 'r') as file:
+            prompts = file.read().strip().split('",\n"')
+            prompts = [prompt.strip('"') for prompt in prompts]
+else:
+    # Default behavior - read all prompts from the default file
+    with open(prompts_file, 'r') as file:
+        prompts = file.read().strip().split('",\n"')
+        prompts = [prompt.strip('"') for prompt in prompts]
 
 file_id = f"{limiting_mode}_{gpu_model}_{ai_model}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 # Setup
@@ -108,6 +156,13 @@ if debug:
 variation_count = 0
 test_count = 0
 
+# Function to log prompts and responses
+def log_interaction(prompt, response, log_file):
+    if log_file:
+        with open(log_file, 'a', encoding='utf-8') as f:
+            f.write(f"PROMPT: {prompt}\n")
+            f.write(f"RESPONSE: {response}\n")
+            f.write("-" * 80 + "\n")
 
 # Set the endpoint based on the environment
 if in_docker:
@@ -164,14 +219,20 @@ while True:
         print(f"    body: {body}")  
 
         query_start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-        response = subprocess.check_output(["curl", "-X", "POST", endpoint, "-H", "Content-Type: application/json", "-d", json.dumps(body)])
+        response = subprocess.check_output(["curl", "-s", "-X", "POST", endpoint, "-H", "Content-Type: application/json", "-d", json.dumps(body)])
         query_end_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
 
         response_array = [json.loads(line) for line in response.decode().split("\n") if line]
 
-        if print_responses:
+        if print_responses or log_file:
+            full_response = ""
             for res in response_array[:-1]:
-                print(res["response"], end="")
+                if print_responses:
+                    print(res["response"], end="")
+                full_response += res["response"]
+            
+            if log_file:
+                log_interaction(prompt, full_response, log_file)
 
         try:
             final_response = next(res for res in response_array if res.get("done"))
@@ -214,11 +275,15 @@ while True:
                 "Model": body["model"],
             }
             inference_log_path = os.path.join(output_dir, f"inference.load.{file_id}.csv")
-            with open(inference_log_path, "a", newline='') as csvfile:
-                writer = csv.DictWriter(csvfile, fieldnames=csv_output.keys())
-                if test_count == 0:
-                    writer.writeheader()
-                writer.writerow(csv_output)
+            try:
+                with open(inference_log_path, "a", newline='') as csvfile:
+                    writer = csv.DictWriter(csvfile, fieldnames=csv_output.keys())
+                    if test_count == 0:
+                        writer.writeheader()
+                    writer.writerow(csv_output)
+                print(f"Successfully wrote to {inference_log_path}")
+            except Exception as e:
+                print(f"Error writing to {inference_log_path}: {e}")
         else:
             print("No valid duration found.")
 

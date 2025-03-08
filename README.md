@@ -31,13 +31,22 @@ environment:
   - DEBUG=False
   - OUTPUT_DIR=benchmark_output
   - IN_DOCKER=True
+  - DEMO_MODE=   # Number of prompts to run, path to custom prompt file, or "true" for default demo (3 prompts)
 ```
 
 Or you can override them on the command line:
 
 ```sh
-GPU_MODEL=h100 AI_MODEL=llama3.2 docker-compose up
+GPU_MODEL=h100 AI_MODEL=llama3.2 DEMO_MODE=5 docker-compose up
 ```
+
+For running in demo mode with the default number of prompts:
+
+```sh
+DEMO_MODE=true docker-compose up
+```
+
+> **Note**: When using environment variables with Docker Compose, the values are passed directly to the Python script as command-line arguments. So `DEMO_MODE=3` will result in running with only 3 prompts from the default prompt file.
 
 ### Using `docker-compose build`
 
@@ -75,7 +84,7 @@ When running the benchmark script directly, you can use the following command-li
 ```
 usage: generate_inference_load.py [-h] [--gpu-model GPU_MODEL] [--ai-model AI_MODEL] [--test-time TEST_TIME]
                                 [--limiting-mode {none,frequency,power,agent}] [--print-responses] [--debug]
-                                [--model-list MODEL_LIST] [--output-dir OUTPUT_DIR] [--in-docker]
+                                [--model-list MODEL_LIST] [--output-dir OUTPUT_DIR] [--in-docker] [--demo-mode DEMO_MODE]
 
 Generate inference load on an AI model
 
@@ -93,6 +102,7 @@ options:
   --output-dir OUTPUT_DIR
                         Directory where output files will be stored (default: benchmark_output)
   --in-docker           Indicate running in Docker container
+  --demo-mode DEMO_MODE Number of prompts to run or path to custom prompt file
 ```
 
 ### Install on Linux using Docker
@@ -107,14 +117,14 @@ options:
 ### Running Ollama
 1. Pull the model you want
     ```
-    curl http://localhost:11434/api/pull -d '{
+    curl -s http://localhost:11434/api/pull -d '{
         "model": "llama3.2"
     }'
     ```
 
 1. Send the prompt
     ```
-    curl http://localhost:11434/api/generate -d '{
+    curl -s http://localhost:11434/api/generate -d '{
         "model": "llama3.2",
         "prompt":"Why is the sky blue?"
     }'
@@ -177,6 +187,31 @@ curl http://localhost:11434/api/generate -d '{
 ### Analyzing the results
 A full pass through the prompts takes around 3 minutes on an h100 if using just one model.
 There are two files which are output: nvidia_smi_log.csv which are the gpu performance metrics and inference_load.csv which are metrics about the prompt. If you have jupyter installed you can use the notebook analyze_agent.ipynb to check the performance of your current run against a default run which has previously been generated. For example if you just ran this test on an h100 the outputs will be inferece.nvidia_smi_log.none_h100_llama3.2_<timestamp>.csv and inference.load.none_h100_llama3.2_<timestamp>.csv.  You need to set a few parameters at the top of the notebook to indicate the files you are anayzing.
+
+### Demo Mode
+
+The demo mode provides a way to run the benchmarks with a reduced set of prompts or with custom prompts:
+
+1. **Limited Number of Prompts**: To run with a limited number of prompts from the default file, use:
+   ```
+   python generate_inference_load.py --demo-mode 5
+   ```
+   This will run only the first 5 prompts from the default prompt file.
+
+2. **Custom Prompt File**: To use a custom prompt file, specify the path:
+   ```
+   python generate_inference_load.py --demo-mode custom_prompts.csv
+   ```
+   The custom prompt file should follow the same format as the default prompt file.
+
+3. **Default Demo Mode**: To use the default demo mode with 3 prompts, use:
+   ```
+   python generate_inference_load.py --demo-mode true
+   ```
+   or
+   ```
+   python generate_inference_load.py --demo-mode yes
+   ```
 
 ## Windows instructions
 

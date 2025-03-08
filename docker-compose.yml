@@ -20,7 +20,7 @@ services:
     environment:
       - AI_MODEL=llama3.2
     command: >
-      curl -X POST http://ollama:11434/api/pull -d '{
+      curl -s -X POST http://ollama:11434/api/pull -d '{
         "model": "${AI_MODEL}"
       }'
 
@@ -43,6 +43,22 @@ services:
       - OUTPUT_DIR=${OUTPUT_DIR:-benchmark_output}
       - IN_DOCKER=${IN_DOCKER:-true}
       - NO_FIXED_OUTPUT=${NO_FIXED_OUTPUT:-false}
+      - DEMO_MODE=${DEMO_MODE:-}
+      - LOG_PROMPTS=${LOG_PROMPTS:-false}
+      - LOG_FILE=${LOG_FILE:-prompts_and_responses.log}
+    command: >
+      bash -c "python generate_inference_load.py 
+      --gpu-model $${GPU_MODEL} 
+      --ai-model $${AI_MODEL} 
+      --test-time $${TEST_TIME} 
+      --limiting-mode $${LIMITING_MODE} 
+      --output-dir $${OUTPUT_DIR} 
+      --in-docker 
+      $${PRINT_RESPONSES:+--print-responses} 
+      $${DEBUG:+--debug} 
+      $${NO_FIXED_OUTPUT:+--no-fixed-output} 
+      $${DEMO_MODE:+--demo-mode $${DEMO_MODE}} 
+      $${LOG_PROMPTS:+--log-file $${OUTPUT_DIR}/$${LOG_FILE}}"
     deploy:
       resources:
         reservations:
