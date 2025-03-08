@@ -210,10 +210,8 @@ while True:
         }
         
         # Add temperature and seed for reproducible output unless no-fixed-output is specified
-        if not no_fixed_output:
-            body["options"]["temperature"] = 0
-            body["options"]["seed"] = 42
-            
+        body["options"]["temperature"] = 0
+        body["options"]["seed"] = 42
             
         print(f"{i} of {len(prompts)} Prompt: {prompt}")
         print(f"    body: {body}")  
