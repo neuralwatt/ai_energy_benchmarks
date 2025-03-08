@@ -202,16 +202,21 @@ while True:
 
     for i, prompt in enumerate(prompts):
         body = {
-            "model": ai_model, 
-            "prompt": prompt
+            "model": ai_model,
+            "prompt": prompt,
+            "options": {
+                "num_ctx": 2048
+            }
         }
         
         # Add temperature and seed for reproducible output unless no-fixed-output is specified
         if not no_fixed_output:
-            body["temperature"] = 0
-            body["seed"] = 42
+            body["options"]["temperature"] = 0
+            body["options"]["seed"] = 42
+            
             
         print(f"{i} of {len(prompts)} Prompt: {prompt}")
+        print(f"    body: {body}")  
 
         query_start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
         response = subprocess.check_output(["curl", "-s", "-X", "POST", endpoint, "-H", "Content-Type: application/json", "-d", json.dumps(body)])

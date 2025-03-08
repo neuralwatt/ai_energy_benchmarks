@@ -210,6 +210,18 @@ Common mistakes I make
 * Ollama docker not running or all required models not available
 * If each prompt looks like it's running slow check the cpu utilization and it shouldn't be really high; ollama is really good at spilling to ram if it runs out of GPU memory and that can happen on 48GB or smaller GPUs with this test.
 * Sometimes python doesn't get correctly installed from the yaml file. If so just conda install python=3.12 with the gpu_load_line env activated
+* Curl command for deterministic output
+```bash
+curl http://localhost:11434/api/generate -d '{
+    "model": "llama3.2",
+    "prompt": "Why is the sky blue?",
+    "options": {
+        "temperature": 0,
+        "seed": 42,
+        "num_ctx": 2048
+    }
+}' 
+```
 
 ### Analyzing the results
 A full pass through the prompts takes around 3 minutes on an h100 if using just one model.
