@@ -1,0 +1,30 @@
+curl http://localhost:11434/api/generate -d '{
+    "model": "llama3.2",
+    "prompt": "Create a short story about a robot discovering nature for the first time. Generate 1000 words.",
+    "options": {
+        "temperature": 0,
+        "seed": 42,
+        "num_ctx": 2048
+    }
+}'
+
+curl http://localhost:11434/api/generate -d '{
+    "model": "llama3.2",
+    "prompt": "What is the first letter of english alphabet?",
+    "options": {
+        "temperature": 0,
+        "seed": 42,
+        "num_ctx": 2048
+    }
+}'
+
+curl http://localhost:11434/api/generate -d '{
+    "model": "llama3.2",
+    "prompt": "Create a short story about a robot discovering nature for the first time. Generate 1000 words.",
+    "options": {
+        "temperature": 0,
+        "seed": 42,
+        "num_ctx": 2048
+    }
+}'
+

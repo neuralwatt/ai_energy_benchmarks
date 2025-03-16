@@ -1,3 +1,9 @@
 *.csv
 !prompts.csv
 benchmark_output/*.log
+!benchmark_output/inference.load.none_h100_deepseek-r1:70b_20250316_222614.csv
+!benchmark_output/inference.load.none_h100_llama3.3_20250316_230401.csv
+!benchmark_output/inference.nvidia_smi_log.none_h100_deepseek-r1:70b_20250316_222614.csv
+!benchmark_output/inference.nvidia_smi_log.none_h100_llama3.3_20250316_230401.csv
+!benchmark_output/prompts_and_responses.h100_deepseek-r1:70b_20250316_222614.log
+!benchmark_output/prompts_and_responses.h100_llama3.3_20250316_230401.log
