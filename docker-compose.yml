@@ -18,7 +18,7 @@ services:
   curl_command:
     image: curlimages/curl:latest
     environment:
-      - AI_MODEL=llama3.2
+      - AI_MODEL=${AI_MODEL:-llama3.2}
     command: >
       curl -s -X POST http://ollama:11434/api/pull -d '{
         "model": "${AI_MODEL}"
@@ -46,6 +46,7 @@ services:
       - DEMO_MODE=${DEMO_MODE:-}
       - LOG_PROMPTS=${LOG_PROMPTS:-false}
       - LOG_FILE=${LOG_FILE:-prompts_and_responses.log}
+      - WARMUP=${WARMUP:-false}
     command: >
       bash -c "python generate_inference_load.py 
       --gpu-model $${GPU_MODEL} 
@@ -58,7 +59,8 @@ services:
       $${DEBUG:+--debug} 
       $${NO_FIXED_OUTPUT:+--no-fixed-output} 
       $${DEMO_MODE:+--demo-mode $${DEMO_MODE}} 
-      $${LOG_PROMPTS:+--log-file $${OUTPUT_DIR}/$${LOG_FILE}}"
+      $${LOG_PROMPTS:+--log-file $${OUTPUT_DIR}/$${LOG_FILE}}
+      $${WARMUP:+--warmup}"
     deploy:
       resources:
         reservations:

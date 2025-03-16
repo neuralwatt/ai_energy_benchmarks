@@ -49,9 +49,11 @@ parser.add_argument('--in-docker', action='store_true', help='Indicate running i
 parser.add_argument('--no-fixed-output', action='store_true', help='Disable fixed temperature and seed settings')
 parser.add_argument('--demo-mode', default=None, help='Number of prompts to run or path to custom prompt file')
 parser.add_argument('--log-file', help='File to log prompts and responses')
+parser.add_argument('--warmup', action='store_true', help='Run all prompts once through the model before benchmarking. Required if we want ollama to generate same tokens in subsequent runs.')
 
 args = parser.parse_args()
 log_file = args.log_file
+warmup = args.warmup
 
 # Set parameters from command-line arguments
 gpu_model = args.gpu_model
@@ -164,6 +166,33 @@ def log_interaction(prompt, response, log_file):
             f.write(f"RESPONSE: {response}\n")
             f.write("-" * 80 + "\n")
 
+# Function to perform warmup by running all prompts once through the model
+def perform_warmup(prompts, ai_model, endpoint):
+    print("Starting warmup phase - running all prompts once to prime the model...")
+    for i, prompt in enumerate(prompts):
+        print(f"Warmup: Processing prompt {i+1} of {len(prompts)}")
+        body = {
+            "model": ai_model,
+            "prompt": prompt,
+            "options": {
+                "num_ctx": 2048,
+                "temperature": 0,
+                "seed": 42
+            }
+        }
+        
+        try:
+            response = subprocess.check_output(
+                ["curl", "-s", "-X", "POST", endpoint, "-H", "Content-Type: application/json", "-d", json.dumps(body)],
+                stderr=subprocess.DEVNULL
+            )
+            # Process but don't log or display the responses
+            _ = [json.loads(line) for line in response.decode().split("\n") if line]
+        except Exception as e:
+            print(f"Error during warmup: {e}")
+    
+    print("Warmup phase completed. Starting benchmark...")
+
 # Set the endpoint based on the environment
 if in_docker:
     print("Running in Docker")
@@ -171,6 +200,10 @@ if in_docker:
 else:
     print("Running locally")
     endpoint = "http://localhost:11434/api/generate"
+
+# Perform warmup if enabled
+if warmup:
+    perform_warmup(prompts, ai_model, endpoint)
 
 while True:
     if limiting_mode == "power":
@@ -202,16 +235,19 @@ while True:
 
     for i, prompt in enumerate(prompts):
         body = {
-            "model": ai_model, 
-            "prompt": prompt
+            "model": ai_model,
+            "prompt": prompt,
+            "options": {
+                "num_ctx": 2048
+            }
         }
         
         # Add temperature and seed for reproducible output unless no-fixed-output is specified
-        if not no_fixed_output:
-            body["temperature"] = 0
-            body["seed"] = 42
+        body["options"]["temperature"] = 0
+        body["options"]["seed"] = 42
             
         print(f"{i} of {len(prompts)} Prompt: {prompt}")
+        print(f"    body: {body}")  
 
         query_start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
         response = subprocess.check_output(["curl", "-s", "-X", "POST", endpoint, "-H", "Content-Type: application/json", "-d", json.dumps(body)])
