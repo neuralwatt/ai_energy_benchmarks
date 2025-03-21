@@ -5,7 +5,8 @@ This script generates inference load on a specified AI model using GPU resources
 It meausres the gpu utilization and power consumption during the inference and is dependent on ollama an dnvidia-smi.
 It supports different limiting modes such as power and frequency to control the GPU behavior.
 The script reads prompts from a CSV file and sends them to an endpoint for inference.
-The results are logged and saved in CSV format.
+The results are logged and saved in CSV format. It now supports randomized benchmark generation
+for Q-learning purposes.
 
 Usage:
     python generate_inference_load.py [options]
@@ -22,6 +23,10 @@ Command-line options:
     --in-docker: Flag to indicate running in Docker container.
     --no-fixed-output: Flag to disable fixed temperature and seed settings.
     --demo-mode: Number of prompts to run or path to custom prompt file.
+    --random-prompts: Flag to enable random prompt selection.
+    --random-count: Flag to randomize the number of prompts to run.
+    --random-intervals: Flag to randomize the intervals between prompts.
+    --q-learning-id: Identifier for the current Q-learning strategy.
 
 Copyright (c) 2025 NeuralWatt Corp. All rights reserved.
 """
@@ -32,6 +37,7 @@ import json
 import csv
 import os
 import argparse
+import random
 from datetime import datetime
 import pandas as pd
 
@@ -49,9 +55,23 @@ parser.add_argument('--in-docker', action='store_true', help='Indicate running i
 parser.add_argument('--no-fixed-output', action='store_true', help='Disable fixed temperature and seed settings')
 parser.add_argument('--demo-mode', default=None, help='Number of prompts to run or path to custom prompt file')
 parser.add_argument('--log-file', help='File to log prompts and responses')
+parser.add_argument('--random-prompts', action='store_true', help='Enable random prompt selection')
+parser.add_argument('--random-count', action='store_true', help='Randomize the number of prompts to run')
+parser.add_argument('--random-intervals', action='store_true', help='Randomize the intervals between prompts')
+parser.add_argument('--min-prompts', type=int, default=5, help='Minimum number of prompts when using random-count')
+parser.add_argument('--max-prompts', type=int, default=20, help='Maximum number of prompts when using random-count')
+parser.add_argument('--min-interval', type=float, default=0.5, help='Minimum interval between prompts in seconds')
+parser.add_argument('--max-interval', type=float, default=3.0, help='Maximum interval between prompts in seconds')
 
 args = parser.parse_args()
 log_file = args.log_file
+random_prompts = args.random_prompts
+random_count = args.random_count
+random_intervals = args.random_intervals
+min_prompts = args.min_prompts
+max_prompts = args.max_prompts
+min_interval = args.min_interval
+max_interval = args.max_interval
 
 # Set parameters from command-line arguments
 gpu_model = args.gpu_model
@@ -118,6 +138,17 @@ else:
     with open(prompts_file, 'r') as file:
         prompts = file.read().strip().split('",\n"')
         prompts = [prompt.strip('"') for prompt in prompts]
+
+# If random prompts is enabled, shuffle the prompts
+if random_prompts:
+    random.shuffle(prompts)
+    print(f"Prompts have been randomly shuffled")
+
+# If random count is enabled, select a random subset of prompts
+if random_count:
+    num_prompts = random.randint(min_prompts, min(max_prompts, len(prompts)))
+    prompts = prompts[:num_prompts]
+    print(f"Randomly selected {num_prompts} prompts")
 
 file_id = f"{limiting_mode}_{gpu_model}_{ai_model}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 # Setup
@@ -215,6 +246,12 @@ while True:
             
         print(f"{i} of {len(prompts)} Prompt: {prompt}")
         print(f"    body: {body}")  
+
+        # If random intervals is enabled, wait for a random amount of time
+        if random_intervals and i > 0:
+            wait_time = random.uniform(min_interval, max_interval)
+            print(f"Waiting for {wait_time:.2f} seconds before next prompt")
+            time.sleep(wait_time)
 
         query_start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
         response = subprocess.check_output(["curl", "-s", "-X", "POST", endpoint, "-H", "Content-Type: application/json", "-d", json.dumps(body)])
