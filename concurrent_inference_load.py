@@ -27,7 +27,7 @@ class InferenceLoadGenerator:
         concurrency: int,
         host: str = "localhost",
         port: int = 8000,
-        max_tokens: int = 30,
+        max_tokens: int = 2000,
         stream: bool = False,
         num_requests: int = 0,  # 0 means unlimited/all available prompts
         output_dir: str = "benchmark_output",
