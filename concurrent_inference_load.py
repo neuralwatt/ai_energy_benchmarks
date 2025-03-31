@@ -371,7 +371,8 @@ class InferenceLoadGenerator:
         stream: bool = False,
         num_requests: int = 0,  # 0 means unlimited/all available prompts
         output_dir: str = "benchmark_output",
-        num_processes: int = 1  # Number of CPU processes to use
+        num_processes: int = 1,  # Number of CPU processes to use
+        random: bool = True     # Whether to select prompts randomly or sequentially
     ):
         self.model_name = model_name
         self.prompts_file = prompts_file
@@ -383,6 +384,7 @@ class InferenceLoadGenerator:
         self.num_requests = num_requests
         self.output_dir = output_dir
         self.num_processes = num_processes
+        self.random = random
         self.prompts = []
         self.responses = []
         self.completion_times = []
@@ -402,6 +404,12 @@ class InferenceLoadGenerator:
         self.metrics_file = os.path.join(
             self.output_dir, 
             f"inference.load.none_{self.get_gpu_type()}_{model_name.replace('/', '-')}_{timestamp}.csv"
+        )
+        
+        # CSV file for power samples
+        self.power_samples_file = os.path.join(
+            self.output_dir, 
+            f"power_samples_{self.get_gpu_type()}_{model_name.replace('/', '-')}_{timestamp}.csv"
         )
         
         # Create a manager for sharing data between processes
@@ -426,9 +434,14 @@ class InferenceLoadGenerator:
             logger.info(f"Loaded {len(self.prompts)} prompts from {self.prompts_file}")
             
             if self.num_requests > 0 and self.num_requests < len(self.prompts):
-                # If num_requests is specified, select that many prompts randomly
-                self.prompts = random.sample(self.prompts, self.num_requests)
-                logger.info(f"Randomly selected {len(self.prompts)} prompts for inference")
+                if self.random:
+                    # Randomly select prompts if random mode is enabled
+                    self.prompts = random.sample(self.prompts, self.num_requests)
+                    logger.info(f"Randomly selected {len(self.prompts)} prompts for inference")
+                else:
+                    # Sequentially select prompts if random mode is disabled
+                    self.prompts = self.prompts[:self.num_requests]
+                    logger.info(f"Sequentially selected the first {len(self.prompts)} prompts for inference")
         except Exception as e:
             logger.error(f"Error loading prompts: {e}")
             raise
@@ -766,6 +779,26 @@ class InferenceLoadGenerator:
                 final_power_samples = [fallback_power]
                 final_timestamps = [time.time()]
         
+        # Save power samples to CSV with timestamps relative to start time
+        if final_power_samples and final_timestamps:
+            try:
+                with open(self.power_samples_file, 'w', newline='') as csvfile:
+                    fieldnames = ['timestamp_seconds', 'power_watts']
+                    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                    writer.writeheader()
+                    
+                    for ts, pwr in zip(final_timestamps, final_power_samples):
+                        # Convert timestamp to seconds relative to start_time
+                        relative_time = ts - self.start_time
+                        writer.writerow({
+                            'timestamp_seconds': f"{relative_time:.3f}",
+                            'power_watts': f"{pwr:.2f}"
+                        })
+                
+                logger.info(f"Saved {len(final_power_samples)} power samples to {self.power_samples_file}")
+            except Exception as e:
+                logger.error(f"Failed to save power samples to CSV: {e}")
+        
         # Collect results from shared lists
         self.responses = list(self.shared_responses)
         self.completion_times = list(self.shared_completion_times)
@@ -775,7 +808,37 @@ class InferenceLoadGenerator:
         
         # Calculate total input and output tokens
         total_input_tokens = sum(len(result['prompt']) for result in self.responses)
-        total_output_tokens = len(self.responses) * self.max_tokens  # Approximate
+        
+        # Calculate actual output tokens instead of using max_tokens approximation
+        total_output_tokens = 0
+        for result in self.responses:
+            # First check if the API response includes a completion_tokens field
+            if 'response' in result and isinstance(result['response'], dict):
+                # Check for completion_tokens in the top level response
+                if 'completion_tokens' in result['response']:
+                    total_output_tokens += result['response']['completion_tokens']
+                    continue
+                # Check for completion_tokens in usage field (OpenAI format)
+                elif 'usage' in result['response'] and isinstance(result['response']['usage'], dict):
+                    if 'completion_tokens' in result['response']['usage']:
+                        total_output_tokens += result['response']['usage']['completion_tokens']
+                        continue
+            
+            # If no completion_tokens found, fall back to our existing methods
+            if 'output_tokens' in result and result['output_tokens'] is not None:
+                total_output_tokens += result['output_tokens']
+            elif 'token_times' in result and result['token_times']:
+                # Use the length of token_times if available (for streaming responses)
+                total_output_tokens += len(result['token_times'])
+            elif 'generated_text' in result and result['generated_text']:
+                # Fallback to rough character-based estimation if we have the text
+                # This is a very rough approximation (4 characters ≈ 1 token)
+                total_output_tokens += len(result['generated_text']) // 4
+            else:
+                # Last resort, use max_tokens (but log a warning)
+                total_output_tokens += self.max_tokens
+                logger.warning("Could not determine actual token count for a response, using max_tokens")
+        
         total_tokens = total_input_tokens + total_output_tokens
         
         # Calculate power metrics
@@ -797,6 +860,12 @@ class InferenceLoadGenerator:
         print("{:<40} {:<10}".format("Total generated tokens:", total_output_tokens))
         print("{:<40} {:<10.2f}".format("Request throughput (req/s):", throughput))
         print("{:<40} {:<10.2f}".format("Average completion time (s):", avg_completion_time))
+        
+        # Add token throughput metrics
+        output_throughput = total_output_tokens / benchmark_duration if benchmark_duration > 0 else 0
+        total_throughput = total_tokens / benchmark_duration if benchmark_duration > 0 else 0
+        print("{:<40} {:<10.2f}".format("Output token throughput (tok/s):", output_throughput))
+        print("{:<40} {:<10.2f}".format("Total Token throughput (tok/s):", total_throughput))
         
         # Print detailed timing metrics
         if 'ttft' in timing_metrics:
@@ -848,6 +917,7 @@ def main():
     parser.add_argument('--num-requests', type=int, default=0, help='Number of requests to make (0 = all prompts)')
     parser.add_argument('--output-dir', type=str, default='benchmark_output', help='Output directory for logs and metrics')
     parser.add_argument('--processes', type=int, default=0, help='Number of CPU processes to use (0 = auto-detect)')
+    parser.add_argument('--no-random', action='store_true', help='Select prompts sequentially instead of randomly')
     
     args = parser.parse_args()
     
@@ -866,7 +936,8 @@ def main():
         stream=args.stream,
         num_requests=args.num_requests,
         output_dir=args.output_dir,
-        num_processes=args.processes
+        num_processes=args.processes,
+        random=not args.no_random  # Use sequential selection if --no-random is specified
     )
     
     # Use multiprocessing for main run
