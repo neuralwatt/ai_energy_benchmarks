@@ -823,6 +823,21 @@ class InferenceLoadGenerator:
                     if 'completion_tokens' in result['response']['usage']:
                         total_output_tokens += result['response']['usage']['completion_tokens']
                         continue
+                
+                # Extract and parse the message content directly from the response
+                try:
+                    if 'choices' in result['response'] and len(result['response']['choices']) > 0:
+                        choice = result['response']['choices'][0]
+                        if 'message' in choice and 'content' in choice['message']:
+                            content = choice['message']['content']
+                            # If content appears to be truncated, try to get as much as possible
+                            if isinstance(content, str):
+                                # A simple token estimation (approximation)
+                                estimated_tokens = len(content.split()) * 1.3  # Average 1.3 tokens per word
+                                total_output_tokens += int(estimated_tokens)
+                                continue
+                except Exception as e:
+                    logger.warning(f"Error parsing response content: {e}")
             
             # If no completion_tokens found, fall back to our existing methods
             if 'output_tokens' in result and result['output_tokens'] is not None:
@@ -831,13 +846,31 @@ class InferenceLoadGenerator:
                 # Use the length of token_times if available (for streaming responses)
                 total_output_tokens += len(result['token_times'])
             elif 'generated_text' in result and result['generated_text']:
-                # Fallback to rough character-based estimation if we have the text
-                # This is a very rough approximation (4 characters ≈ 1 token)
-                total_output_tokens += len(result['generated_text']) // 4
+                # Improved token estimation for the text
+                text = result['generated_text']
+                # Count words and estimate tokens (GPT models average ~1.3 tokens per word)
+                word_count = len(text.split())
+                estimated_tokens = int(word_count * 1.3)
+                total_output_tokens += estimated_tokens
             else:
-                # Last resort, use max_tokens (but log a warning)
-                total_output_tokens += self.max_tokens
+                # Last resort, check the logged response
+                logger.warning("Attempting to parse truncated response from log")
+                try:
+                    if 'response' in result and isinstance(result['response'], dict) and 'choices' in result['response']:
+                        # If we have a truncated response, try to count visible words
+                        raw_response = str(result['response'])
+                        visible_content = raw_response.split('content": "')[1].split('"')[0] if 'content": "' in raw_response else ""
+                        if visible_content:
+                            word_count = len(visible_content.split())
+                            estimated_tokens = int(word_count * 1.3)
+                            total_output_tokens += estimated_tokens
+                            continue
+                except Exception as e:
+                    logger.warning(f"Failed to parse truncated response: {e}")
+                
+                # Absolute last resort, use max_tokens
                 logger.warning("Could not determine actual token count for a response, using max_tokens")
+                total_output_tokens += self.max_tokens
         
         total_tokens = total_input_tokens + total_output_tokens
         
