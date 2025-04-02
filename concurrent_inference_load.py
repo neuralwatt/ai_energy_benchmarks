@@ -293,8 +293,11 @@ class BackgroundPowerMonitor:
                             total_power = sum(power_values)
                             current_time = time.time()
                             
-                            # Write to file
-                            f.write(f"{current_time},{total_power}\n")
+                            # Format timestamp in human-readable format
+                            formatted_time = datetime.fromtimestamp(current_time).strftime("%m-%d %H:%M:%S.%f")[:-3]
+                            
+                            # Write to file with formatted timestamp
+                            f.write(f"{formatted_time},{total_power:.2f}\n")
                             f.flush()
                             
                             sample_count += 1
@@ -348,7 +351,25 @@ class BackgroundPowerMonitor:
                         if line.strip():
                             parts = line.strip().split(',')
                             if len(parts) == 2:
-                                timestamps.append(float(parts[0]))
+                                # Parse timestamps back to float for internal calculations
+                                # We'll need to convert the formatted timestamp string back to epoch time
+                                try:
+                                    # First try parsing the new format
+                                    dt_str = parts[0]
+                                    dt_obj = datetime.strptime(dt_str, "%m-%d %H:%M:%S.%f")
+                                    # Add current year since our format doesn't include year
+                                    current_year = datetime.now().year
+                                    dt_obj = dt_obj.replace(year=current_year)
+                                    epoch_time = dt_obj.timestamp()
+                                    timestamps.append(epoch_time)
+                                except ValueError:
+                                    # Fall back to original format if needed
+                                    try:
+                                        timestamps.append(float(parts[0]))
+                                    except ValueError:
+                                        logger.warning(f"Could not parse timestamp: {parts[0]}")
+                                        continue
+                                
                                 power_samples.append(float(parts[1]))
                 logger.info(f"Read {len(power_samples)} power samples from {self.output_file}")
                 
@@ -446,8 +467,8 @@ class InferenceLoadGenerator:
             logger.error(f"Error loading prompts: {e}")
             raise
 
-    async def make_inference_request(self, session: aiohttp.ClientSession, prompt: str) -> Dict[str, Any]:
-        """Make a single inference request and return the result."""
+    async def make_inference_request(self, session: aiohttp.ClientSession, prompt: str, retry_count=0, max_retries=3) -> Dict[str, Any]:
+        """Make a single inference request and return the result with retry mechanism."""
         url = f"http://{self.host}:{self.port}/v1/chat/completions"
         
         payload = {
@@ -469,7 +490,7 @@ class InferenceLoadGenerator:
         try:
             if self.stream:
                 # For streaming responses, we need to track token timing
-                async with session.post(url, json=payload) as response:
+                async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=600)) as response:
                     if response.status != 200:
                         error_text = await response.text()
                         raise Exception(f"HTTP error {response.status}: {error_text}")
@@ -501,7 +522,11 @@ class InferenceLoadGenerator:
                     }
             else:
                 # For non-streaming responses
-                async with session.post(url, json=payload) as response:
+                async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=600)) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        raise Exception(f"HTTP error {response.status}: {error_text}")
+                    
                     result = await response.json()
                     token_received_time = time.time()
                     ttft = token_received_time - start_time
@@ -540,23 +565,53 @@ class InferenceLoadGenerator:
                 "generated_text": generated_text,
                 "output_tokens": len(token_times) if self.stream else None  # Only available for streaming
             }
-        except Exception as e:
-            logger.error(f"Error making inference request: {e}")
-            return {
-                "prompt": prompt,
-                "response": {"error": str(e)},
-                "elapsed_time": time.time() - start_time,
-                "ttft": None,
-                "itl": [],
-                "token_times": [],
-                "generated_text": "",
-                "output_tokens": 0
-            }
+        except (aiohttp.ClientError, asyncio.TimeoutError, Exception) as e:
+            if retry_count < max_retries:
+                # Exponential backoff: 2^retry_count seconds (2, 4, 8, etc.)
+                backoff_time = 2 ** retry_count
+                logger.warning(f"Request failed: {str(e)}. Retrying in {backoff_time}s (attempt {retry_count + 1}/{max_retries})")
+                await asyncio.sleep(backoff_time)
+                return await self.make_inference_request(session, prompt, retry_count + 1, max_retries)
+            else:
+                logger.error(f"Failed to make inference request after {max_retries} retries: {e}")
+                return {
+                    "prompt": prompt,
+                    "response": {"error": str(e)},
+                    "elapsed_time": time.time() - start_time,
+                    "ttft": None,
+                    "itl": [],
+                    "token_times": [],
+                    "generated_text": "",
+                    "output_tokens": 0
+                }
 
     async def run_inference_batch(self, batch: List[str]) -> List[Dict[str, Any]]:
-        """Run inference on a batch of prompts concurrently."""
-        async with aiohttp.ClientSession() as session:
-            tasks = [self.make_inference_request(session, prompt) for prompt in batch]
+        """Run inference on a batch of prompts with rate limiting."""
+        # Create a ClientSession with connection pooling limits
+        conn = aiohttp.TCPConnector(
+            limit=self.concurrency,  # Limit total number of connections
+            limit_per_host=self.concurrency,  # Limit connections per host
+            enable_cleanup_closed=True,  # Clean up sockets when closed
+            force_close=False,  # Keep connections alive between requests
+            ttl_dns_cache=300  # Cache DNS results for 5 minutes
+        )
+        
+        # Use a semaphore to limit the number of concurrent requests
+        # This helps prevent overwhelming the server
+        semaphore = asyncio.Semaphore(self.concurrency)
+        
+        async def limited_request(prompt):
+            async with semaphore:
+                # Add a small delay between requests to reduce server load
+                if self.concurrency > 1:
+                    # Add a small jitter to avoid all requests hitting at exactly the same time
+                    jitter = random.uniform(0.1, 0.5)
+                    await asyncio.sleep(jitter)
+                return await self.make_inference_request(session, prompt)
+        
+        # Create tasks with the semaphore to limit concurrency
+        async with aiohttp.ClientSession(connector=conn) as session:
+            tasks = [limited_request(prompt) for prompt in batch]
             return await asyncio.gather(*tasks)
 
     async def process_batch_async(self, batch_idx: int, prompts_batch: List[str]):
@@ -684,8 +739,11 @@ class InferenceLoadGenerator:
             logger.error("No prompts loaded. Exiting.")
             return
         
-        # Create a power monitoring file in the output directory
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        # Create a power monitoring file in the output directory with reformatted timestamp
+        current_time = datetime.now()
+        timestamp = current_time.strftime("%m-%d %H:%M:%S")
+        formatted_date = current_time.strftime("%Y%m%d_%H%M%S")  # Keep original format for other files
+        
         power_log_file = os.path.join(
             self.output_dir,
             f"power_log_{self.model_name.replace('/', '-')}_{timestamp}.csv"
@@ -720,19 +778,45 @@ class InferenceLoadGenerator:
         # If we have fewer prompts than processes, adjust num_processes
         actual_processes = min(self.num_processes, len(prompt_chunks))
         
-        # Create and start processes
-        processes = []
-        for i in range(actual_processes):
-            process = multiprocessing.Process(
-                target=self.process_batch,
-                args=(i, prompt_chunks[i])
-            )
-            processes.append(process)
-            process.start()
-        
-        # Wait for all processes to complete
-        for process in processes:
-            process.join()
+        # For streaming mode, we need to ensure complete responses by using a different approach
+        if self.stream:
+            logger.info("Streaming mode detected - using synchronized approach to ensure complete responses")
+            # For streaming, process all prompts in the main process to ensure proper handling
+            all_results = []
+            
+            # If still using multiple processes in streaming mode, warn about potential issues
+            if actual_processes > 1:
+                logger.warning(f"Using {actual_processes} processes with streaming may cause incomplete responses.")
+                logger.warning("Consider using --processes=1 with streaming mode for more reliable results.")
+            
+            # Process each chunk sequentially in the main process to ensure connections stay open
+            for i, chunk in enumerate(prompt_chunks):
+                logger.info(f"Processing chunk {i+1}/{len(prompt_chunks)} with {len(chunk)} prompts")
+                chunk_results = asyncio.run(self.process_batch_async(i, chunk))
+                all_results.extend(chunk_results)
+                logger.info(f"Completed chunk {i+1}/{len(prompt_chunks)}")
+            
+            # Add results to shared responses
+            for result in all_results:
+                self.shared_responses.append(result)
+                self.shared_completion_times.append(result['elapsed_time'])
+                
+            logger.info(f"Processed all {len(all_results)} streaming requests")
+        else:
+            # For non-streaming, continue to use multiple processes as before
+            # Create and start processes
+            processes = []
+            for i in range(actual_processes):
+                process = multiprocessing.Process(
+                    target=self.process_batch,
+                    args=(i, prompt_chunks[i])
+                )
+                processes.append(process)
+                process.start()
+            
+            # Wait for all processes to complete
+            for process in processes:
+                process.join()
         
         # Record benchmark duration immediately after processes complete
         benchmark_duration = time.time() - self.start_time
@@ -802,6 +886,17 @@ class InferenceLoadGenerator:
         # Collect results from shared lists
         self.responses = list(self.shared_responses)
         self.completion_times = list(self.shared_completion_times)
+        
+        # Verify we're not double-counting requests
+        logger.info(f"Number of prompts requested: {len(self.prompts)}")
+        logger.info(f"Actual responses collected: {len(self.responses)}")
+        
+        # Ensure we don't have duplicate responses (use the first len(self.prompts) responses)
+        # This prevents double-counting in case all processes add their results to shared_responses
+        if len(self.responses) > len(self.prompts):
+            logger.warning(f"Found more responses ({len(self.responses)}) than prompts ({len(self.prompts)}), truncating to match prompt count")
+            self.responses = self.responses[:len(self.prompts)]
+            self.completion_times = self.completion_times[:len(self.prompts)]
         
         avg_completion_time = sum(self.completion_times) / len(self.completion_times) if self.completion_times else 0
         throughput = len(self.prompts) / benchmark_duration if benchmark_duration > 0 else 0

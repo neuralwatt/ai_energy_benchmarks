@@ -1,0 +1,38 @@
+======== Inference Load Generator Results ========
+Successful requests:                     2         
+Benchmark duration (s):                  83.47     
+Total input tokens:                      188       
+Total generated tokens:                  4026      
+Request throughput (req/s):              0.01      
+Average completion time (s):             83.46     
+Output token throughput (tok/s):         48.23     
+Total Token throughput (tok/s):          50.48     
+-------------- Time to First Token ---------------
+Mean TTFT (ms):                          72.62     
+Median TTFT (ms):                        72.62     
+P50 TTFT (ms):                           72.62     
+P90 TTFT (ms):                           72.62     
+P95 TTFT (ms):                           72.62     
+P99 TTFT (ms):                           72.62     
+---- Time per Output Token (excl. 1st token) -----
+Mean TPOT (ms):                          41.70     
+Median TPOT (ms):                        41.70     
+P50 TPOT (ms):                           41.70     
+P90 TPOT (ms):                           41.70     
+P95 TPOT (ms):                           41.70     
+P99 TPOT (ms):                           41.70     
+-------------- Inter-token Latency ---------------
+Mean ITL (ms):                           41.70     
+Median ITL (ms):                         41.65     
+P50 ITL (ms):                            41.65     
+P90 ITL (ms):                            42.57     
+P95 ITL (ms):                            42.68     
+P99 ITL (ms):                            42.90     
+----------- Power Consumption Metrics ------------
+Total Power (J):                         46042.32  
+Peak Power (W):                          555.96    
+Average Power (W):                       551.60    
+Mean Tokens/Watt:                        0.09      
+Median Tokens/Watt:                      0.09      
+P99 Tokens/Watt:                         0.09      
+==================================================
