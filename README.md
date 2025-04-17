@@ -1,4 +1,43 @@
-## Instructions benchmarking setup, creating a loadline or testing a loadline.
+# Instructions benchmarking setup, creating a loadline or testing a loadline.
+
+## Branch Management Guide.  This is a private clone of a public repo where we keep neuralwatt specific code.
+
+## Overview
+This guide provides instructions on managing branches between a public repository and a private repository. Follow these steps to keep your repositories organized and in sync.
+
+## Setting Up Remotes
+1. **Add Remotes**
+   Add the public and private repositories as remotes:
+   ```bash
+   # Add the public repository
+   git remote add public https://github.com/neuralwatt/ai_energy_benchmarks.git
+   # Add the private repository
+   git remote add private https://github.com/neuralwatt/neuralwatt_benchmark.git
+1. **Verify Remotes**
+    ```bash
+    git remote -v
+1. **Creating a new Branch and Committing**
+    ```bash
+    git checkout -b new_branch
+    git add .
+    git commit -m "message"
+1. **Pushing Changes to Private Repo**
+    ```bash
+    git push private new_branch
+1. **Pushing Changes to Public Repo**
+    ```bash
+    git push public new_branch
+1. **Keeping Repositories in Sync**
+    ```bash
+    git fetch public #Fetch updates from public
+    git merge public/main #Merge updates from public in to private
+    git push private new_branch #push merged changes to private repo
+1. ** Switching branches**
+    ```bash
+    #If in private repo and want to checkout the public
+    git checkout -b public-main public/main
+
+
 
 ### Disk Space
 Ensure your VM has > 60G free space in / to download the model weights. You can configure ollama to put the model weights somewhere else but I haven't covered that in these instructions. If allocating a single OS disk on datacrunch.io one with 100G total capacity is sufficient for this test.

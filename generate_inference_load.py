@@ -5,7 +5,8 @@ This script generates inference load on a specified AI model using GPU resources
 It meausres the gpu utilization and power consumption during the inference and is dependent on ollama an dnvidia-smi.
 It supports different limiting modes such as power and frequency to control the GPU behavior.
 The script reads prompts from a CSV file and sends them to an endpoint for inference.
-The results are logged and saved in CSV format.
+The results are logged and saved in CSV format. It now supports randomized benchmark generation
+for Q-learning purposes.
 
 Usage:
     python generate_inference_load.py [options]
@@ -22,6 +23,11 @@ Command-line options:
     --in-docker: Flag to indicate running in Docker container.
     --no-fixed-output: Flag to disable fixed temperature and seed settings.
     --demo-mode: Number of prompts to run or path to custom prompt file.
+    --random-prompts: Flag to enable random prompt selection.
+    --random-count: Flag to randomize the number of prompts to run.
+    --random-intervals: Flag to randomize the intervals between prompts.
+    --q-learning-id: Identifier for the current Q-learning strategy.
+    --dynamo: Running against a dynamo server
 
 Copyright (c) 2025 NeuralWatt Corp. All rights reserved.
 """
@@ -32,6 +38,7 @@ import json
 import csv
 import os
 import argparse
+import random
 from datetime import datetime
 import pandas as pd
 
@@ -50,10 +57,25 @@ parser.add_argument('--no-fixed-output', action='store_true', help='Disable fixe
 parser.add_argument('--demo-mode', default=None, help='Number of prompts to run or path to custom prompt file')
 parser.add_argument('--log-file', help='File to log prompts and responses')
 parser.add_argument('--warmup', action='store_true', help='Run all prompts once through the model before benchmarking. Required if we want ollama to generate same tokens in subsequent runs.')
+parser.add_argument('--random-prompts', action='store_true', help='Enable random prompt selection')
+parser.add_argument('--random-count', action='store_true', help='Randomize the number of prompts to run')
+parser.add_argument('--random-intervals', action='store_true', help='Randomize the intervals between prompts')
+parser.add_argument('--min-prompts', type=int, default=5, help='Minimum number of prompts when using random-count')
+parser.add_argument('--max-prompts', type=int, default=20, help='Maximum number of prompts when using random-count')
+parser.add_argument('--min-interval', type=float, default=0.5, help='Minimum interval between prompts in seconds')
+parser.add_argument('--max-interval', type=float, default=3.0, help='Maximum interval between prompts in seconds')
+parser.add_argument('--dynamo', action='store_true', help='Indicate running against a dynamo server')
 
 args = parser.parse_args()
 log_file = args.log_file
 warmup = args.warmup
+random_prompts = args.random_prompts
+random_count = args.random_count
+random_intervals = args.random_intervals
+min_prompts = args.min_prompts
+max_prompts = args.max_prompts
+min_interval = args.min_interval
+max_interval = args.max_interval
 
 # Set parameters from command-line arguments
 gpu_model = args.gpu_model
@@ -67,6 +89,7 @@ in_docker = args.in_docker
 output_dir = args.output_dir
 no_fixed_output = args.no_fixed_output
 demo_mode = args.demo_mode
+dynamo = args.dynamo
 
 # Create output directory if it doesn't exist
 if not os.path.exists(output_dir):
@@ -121,7 +144,22 @@ else:
         prompts = file.read().strip().split('",\n"')
         prompts = [prompt.strip('"') for prompt in prompts]
 
-file_id = f"{limiting_mode}_{gpu_model}_{ai_model}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+# If random prompts is enabled, shuffle the prompts
+if random_prompts:
+    random.shuffle(prompts)
+    print(f"Prompts have been randomly shuffled")
+
+# If random count is enabled, select a random subset of prompts
+if random_count:
+    num_prompts = random.randint(min_prompts, min(max_prompts, len(prompts)))
+    prompts = prompts[:num_prompts]
+    print(f"Randomly selected {num_prompts} prompts")
+
+#create a file_model_id by parsing out the / if it exists
+if '/' in ai_model:
+    file_ai_model = ai_model.split('/')[-1]
+    print(f"AI model parsed to: {ai_model}")
+file_id = f"{limiting_mode}_{gpu_model}_{file_ai_model}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 # Setup
 if limiting_mode == "power":
     min_power_limit = int(subprocess.check_output("nvidia-smi -q -d POWER | grep 'Min Power Limit' | awk '{print $5}'", shell=True).strip()) / 100
@@ -197,6 +235,9 @@ def perform_warmup(prompts, ai_model, endpoint):
 if in_docker:
     print("Running in Docker")
     endpoint = "http://ollama:11434/api/generate"
+elif dynamo:
+    print("Running against a dynamo server")
+    endpoint = "http://localhost:8000/v1/chat/completions"
 else:
     print("Running locally")
     endpoint = "http://localhost:11434/api/generate"
@@ -241,6 +282,18 @@ while True:
                 "num_ctx": 2048
             }
         }
+        if dynamo:
+            body = {
+                "model": ai_model,
+                "messages": [{"role": "user", "content": prompt}],
+                "stream":False,
+                "options": {
+                    "num_ctx": 2048
+                },
+                "stream_options": {
+                    "include_usage":True
+                }
+            }
         
         # Add temperature and seed for reproducible output unless no-fixed-output is specified
         body["options"]["temperature"] = 0
@@ -249,10 +302,17 @@ while True:
         print(f"{i} of {len(prompts)} Prompt: {prompt}")
         print(f"    body: {body}")  
 
+        # If random intervals is enabled, wait for a random amount of time
+        if random_intervals and i > 0:
+            wait_time = random.uniform(min_interval, max_interval)
+            print(f"Waiting for {wait_time:.2f} seconds before next prompt")
+            time.sleep(wait_time)
+
         query_start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
         response = subprocess.check_output(["curl", "-s", "-X", "POST", endpoint, "-H", "Content-Type: application/json", "-d", json.dumps(body)])
         query_end_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
 
+        print(f"response: {response}")
         response_array = [json.loads(line) for line in response.decode().split("\n") if line]
 
         if print_responses or log_file:
@@ -266,17 +326,33 @@ while True:
                 log_interaction(prompt, full_response, log_file)
 
         try:
-            final_response = next(res for res in response_array if res.get("done"))
+            if dynamo:
+                final_response = next(
+                    res for res in response_array
+                    if any(choice.get("finish_reason") for choice in res.get("choices", []))
+                )
+            else:
+                final_response = next(res for res in response_array if res.get("done"))
         except StopIteration:
             print("No final response found with 'done' key.")
+            test_count += 1
             continue
 
-        total_tokens = len(final_response["context"])
-        total_duration_seconds = final_response["total_duration"] / 1e9
-        prompt_tokens = final_response["prompt_eval_count"]
-        prompt_eval_duration_seconds = final_response["prompt_eval_duration"] / 1e9
-        response_tokens = final_response["eval_count"]
-        response_eval_duration_seconds = final_response["load_duration"] / 1e9
+        if dynamo:
+            usage = final_response.get("usage", {})
+            total_tokens = usage.get("total_tokens", 0)
+            total_duration_seconds = (pd.to_datetime(query_end_time) - pd.to_datetime(query_start_time)).total_seconds()
+            prompt_tokens = usage.get("prompt_tokens", 0)
+            prompt_eval_duration_seconds = -1  # default and to prevent division by zero
+            response_tokens = usage.get("completion_tokens", 0)
+            response_eval_duration_seconds = -1
+        else:
+            total_tokens = len(final_response["context"])
+            total_duration_seconds = final_response["total_duration"] / 1e9
+            prompt_tokens = final_response["prompt_eval_count"]
+            prompt_eval_duration_seconds = final_response["prompt_eval_duration"] / 1e9
+            response_tokens = final_response["eval_count"]
+            response_eval_duration_seconds = final_response["load_duration"] / 1e9
 
         if total_duration_seconds > 0:
             tokens_per_second = total_tokens / total_duration_seconds
