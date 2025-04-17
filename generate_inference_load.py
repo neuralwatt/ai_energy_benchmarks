@@ -56,6 +56,7 @@ parser.add_argument('--in-docker', action='store_true', help='Indicate running i
 parser.add_argument('--no-fixed-output', action='store_true', help='Disable fixed temperature and seed settings')
 parser.add_argument('--demo-mode', default=None, help='Number of prompts to run or path to custom prompt file')
 parser.add_argument('--log-file', help='File to log prompts and responses')
+parser.add_argument('--warmup', action='store_true', help='Run all prompts once through the model before benchmarking. Required if we want ollama to generate same tokens in subsequent runs.')
 parser.add_argument('--random-prompts', action='store_true', help='Enable random prompt selection')
 parser.add_argument('--random-count', action='store_true', help='Randomize the number of prompts to run')
 parser.add_argument('--random-intervals', action='store_true', help='Randomize the intervals between prompts')
@@ -67,6 +68,7 @@ parser.add_argument('--dynamo', action='store_true', help='Indicate running agai
 
 args = parser.parse_args()
 log_file = args.log_file
+warmup = args.warmup
 random_prompts = args.random_prompts
 random_count = args.random_count
 random_intervals = args.random_intervals
@@ -202,6 +204,33 @@ def log_interaction(prompt, response, log_file):
             f.write(f"RESPONSE: {response}\n")
             f.write("-" * 80 + "\n")
 
+# Function to perform warmup by running all prompts once through the model
+def perform_warmup(prompts, ai_model, endpoint):
+    print("Starting warmup phase - running all prompts once to prime the model...")
+    for i, prompt in enumerate(prompts):
+        print(f"Warmup: Processing prompt {i+1} of {len(prompts)}")
+        body = {
+            "model": ai_model,
+            "prompt": prompt,
+            "options": {
+                "num_ctx": 2048,
+                "temperature": 0,
+                "seed": 42
+            }
+        }
+        
+        try:
+            response = subprocess.check_output(
+                ["curl", "-s", "-X", "POST", endpoint, "-H", "Content-Type: application/json", "-d", json.dumps(body)],
+                stderr=subprocess.DEVNULL
+            )
+            # Process but don't log or display the responses
+            _ = [json.loads(line) for line in response.decode().split("\n") if line]
+        except Exception as e:
+            print(f"Error during warmup: {e}")
+    
+    print("Warmup phase completed. Starting benchmark...")
+
 # Set the endpoint based on the environment
 if in_docker:
     print("Running in Docker")
@@ -212,6 +241,10 @@ elif dynamo:
 else:
     print("Running locally")
     endpoint = "http://localhost:11434/api/generate"
+
+# Perform warmup if enabled
+if warmup:
+    perform_warmup(prompts, ai_model, endpoint)
 
 while True:
     if limiting_mode == "power":

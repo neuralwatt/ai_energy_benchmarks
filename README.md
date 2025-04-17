@@ -42,6 +42,20 @@ This guide provides instructions on managing branches between a public repositor
 ### Disk Space
 Ensure your VM has > 60G free space in / to download the model weights. You can configure ollama to put the model weights somewhere else but I haven't covered that in these instructions. If allocating a single OS disk on datacrunch.io one with 100G total capacity is sufficient for this test.
 
+## Quickstart
+1. Create & activate the conda environment
+```bash
+conda create -n ai_energy_benchmark python=3.12
+conda activate ai_energy_benchmark
+```
+
+2. Run the benchmark
+```
+ AI_MODEL=llama3.2 WARMUP=true docker compose up
+```
+
+
+
 ## Running Everything with Docker
 
 To start the services defined in the `docker-compose.yml` file, you have two options: `docker-compose up` or `docker-compose build`.
