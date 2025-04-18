@@ -156,9 +156,11 @@ if random_count:
     print(f"Randomly selected {num_prompts} prompts")
 
 #create a file_model_id by parsing out the / if it exists
+file_ai_model = ai_model
 if '/' in ai_model:
     file_ai_model = ai_model.split('/')[-1]
-    print(f"AI model parsed to: {ai_model}")
+    print(f"AI model parsed to: {file_ai_model}")
+
 file_id = f"{limiting_mode}_{gpu_model}_{file_ai_model}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 # Setup
 if limiting_mode == "power":
