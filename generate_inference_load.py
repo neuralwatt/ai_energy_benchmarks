@@ -240,7 +240,7 @@ if in_docker:
 #dynamo overrides docker mode if both are true
 if dynamo:
     print("Running against a dynamo server")
-    endpoint = "http://localhost:8000/v1/chat/completions"
+    endpoint = "http://dynamo:8000/v1/chat/completions"
 
 if not in_docker and not dynamo:
     print("Running locally")
