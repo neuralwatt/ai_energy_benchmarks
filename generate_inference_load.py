@@ -237,10 +237,12 @@ def perform_warmup(prompts, ai_model, endpoint):
 if in_docker:
     print("Running in Docker")
     endpoint = "http://ollama:11434/api/generate"
-elif dynamo:
+#dynamo overrides docker mode if both are true
+if dynamo:
     print("Running against a dynamo server")
     endpoint = "http://localhost:8000/v1/chat/completions"
-else:
+
+if not in_docker and not dynamo:
     print("Running locally")
     endpoint = "http://localhost:11434/api/generate"
 
