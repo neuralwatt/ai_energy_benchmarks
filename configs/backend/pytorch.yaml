@@ -1,0 +1,9 @@
+# PyTorch Backend Configuration (Stub for POC)
+
+type: pytorch
+device: cuda
+device_ids: [0]
+model: openai/gpt-oss-120b
+task: text-generation
+torch_dtype: auto
+device_map: auto
