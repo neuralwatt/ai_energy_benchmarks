@@ -9,10 +9,14 @@ class CodeCarbonCollector(MetricsCollector):
     """CodeCarbon-based energy and emissions tracker.
 
     Provides comprehensive energy measurement including:
-    - GPU energy (NVIDIA/AMD/Intel)
+    - GPU energy (NVIDIA/AMD/Intel) - PRIMARY METRIC
     - CPU energy (RAPL)
     - RAM energy
     - Carbon emissions (CO2eq)
+
+    Methodology aligned with AIEnergyScore:
+    - Reports GPU-only energy as primary metric for standardized comparison
+    - Full energy breakdown (GPU/CPU/RAM) available in detailed metrics
     """
 
     def __init__(
@@ -54,27 +58,34 @@ class CodeCarbonCollector(MetricsCollector):
         try:
             from codecarbon import EmissionsTracker
 
+            # CodeCarbon 3.0+ doesn't use country_iso_code/region
+            # It uses tracking_mode and co2_signal_api_token instead
             self.tracker = EmissionsTracker(
                 project_name=self.project_name,
                 output_dir=self.output_dir,
                 log_level=self.log_level,
-                country_iso_code=self.country_iso_code,
-                region=self.region,
                 save_to_file=self.save_to_file,
-                gpu_ids=self.gpu_ids
+                gpu_ids=self.gpu_ids,
+                tracking_mode="machine"  # Use machine mode for local tracking
             )
 
             self.tracker.start()
             self._tracker_started = True
+            print(f"CodeCarbon tracker started (version 3.0+, machine mode)")
 
         except ImportError:
             print("Warning: codecarbon not installed. Energy metrics will not be collected.")
             print("Install with: pip install codecarbon")
         except Exception as e:
             print(f"Error starting CodeCarbon tracker: {e}")
+            import traceback
+            traceback.print_exc()
 
     def stop(self) -> Dict[str, Any]:
         """Stop tracking and return metrics.
+
+        Returns GPU-only energy as primary metric (aligned with AIEnergyScore).
+        Full breakdown (GPU/CPU/RAM) available in detailed fields.
 
         Returns:
             Dict with energy and emissions data
@@ -84,6 +95,14 @@ class CodeCarbonCollector(MetricsCollector):
                 "emissions_kg_co2eq": 0.0,
                 "energy_kwh": 0.0,
                 "energy_wh": 0.0,
+                "gpu_energy_kwh": 0.0,
+                "gpu_energy_wh": 0.0,
+                "cpu_energy_kwh": 0.0,
+                "cpu_energy_wh": 0.0,
+                "ram_energy_kwh": 0.0,
+                "ram_energy_wh": 0.0,
+                "total_energy_kwh": 0.0,
+                "total_energy_wh": 0.0,
                 "duration_seconds": 0.0,
                 "error": "Tracker not started or codecarbon not installed"
             }
@@ -94,22 +113,49 @@ class CodeCarbonCollector(MetricsCollector):
             # Get detailed emissions data
             if hasattr(self.tracker, 'final_emissions_data'):
                 data = self.tracker.final_emissions_data
-                energy_kwh = data.energy_consumed if hasattr(data, 'energy_consumed') else 0.0
+
+                # Extract component energies (in kWh)
+                gpu_energy_kwh = data.gpu_energy if hasattr(data, 'gpu_energy') else 0.0
+                cpu_energy_kwh = data.cpu_energy if hasattr(data, 'cpu_energy') else 0.0
+                ram_energy_kwh = data.ram_energy if hasattr(data, 'ram_energy') else 0.0
+                total_energy_kwh = data.energy_consumed if hasattr(data, 'energy_consumed') else 0.0
+
                 duration = data.duration if hasattr(data, 'duration') else 0.0
                 carbon_intensity = data.emissions_rate if hasattr(data, 'emissions_rate') else 0.0
             else:
                 # Fallback if final_emissions_data not available
-                energy_kwh = 0.0
+                gpu_energy_kwh = 0.0
+                cpu_energy_kwh = 0.0
+                ram_energy_kwh = 0.0
+                total_energy_kwh = 0.0
                 duration = 0.0
                 carbon_intensity = 0.0
 
             self._tracker_started = False
 
+            # Primary metric: GPU energy (aligned with AIEnergyScore methodology)
+            # This enables standardized model comparison across different CPU/RAM configurations
             return {
                 "emissions_kg_co2eq": emissions_kg or 0.0,
                 "emissions_g_co2eq": (emissions_kg or 0.0) * 1000,
-                "energy_kwh": energy_kwh,
-                "energy_wh": energy_kwh * 1000,
+
+                # Primary energy metric (GPU-only, matches AIEnergyScore)
+                "energy_kwh": gpu_energy_kwh,
+                "energy_wh": gpu_energy_kwh * 1000,
+
+                # Detailed energy breakdown
+                "gpu_energy_kwh": gpu_energy_kwh,
+                "gpu_energy_wh": gpu_energy_kwh * 1000,
+                "cpu_energy_kwh": cpu_energy_kwh,
+                "cpu_energy_wh": cpu_energy_kwh * 1000,
+                "ram_energy_kwh": ram_energy_kwh,
+                "ram_energy_wh": ram_energy_kwh * 1000,
+
+                # Total system energy (GPU+CPU+RAM)
+                "total_energy_kwh": total_energy_kwh,
+                "total_energy_wh": total_energy_kwh * 1000,
+
+                # Other metrics
                 "duration_seconds": duration,
                 "carbon_intensity_g_per_kwh": carbon_intensity,
                 "project_name": self.project_name,
@@ -121,6 +167,10 @@ class CodeCarbonCollector(MetricsCollector):
             return {
                 "emissions_kg_co2eq": 0.0,
                 "energy_kwh": 0.0,
+                "gpu_energy_kwh": 0.0,
+                "cpu_energy_kwh": 0.0,
+                "ram_energy_kwh": 0.0,
+                "total_energy_kwh": 0.0,
                 "error": f"Error stopping tracker: {e}"
             }
 

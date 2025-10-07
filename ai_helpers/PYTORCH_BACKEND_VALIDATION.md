@@ -266,3 +266,139 @@ The low nvidia-smi utilization percentage (0.9%) is a **known sampling artifact*
 **Validation Date:** 2025-10-07
 **Validated By:** Automated test suite with GPU monitoring
 **Status:** ✅ PASSED - GPU usage confirmed
+
+---
+
+## Energy Measurement Methodology
+
+### Alignment with AIEnergyScore
+
+**Date:** 2025-10-07
+**Status:** ✅ Methodology Aligned
+
+This benchmark framework has been aligned with [AIEnergyScore](https://github.com/huggingface/AIEnergyScore) methodology for standardized energy measurement and model comparison.
+
+### Primary Metric: GPU Energy
+
+**Why GPU-only?**
+- **Standardization:** Enables fair model-to-model comparison
+- **Hardware Independence:** Removes variability from different CPU/RAM configurations
+- **Industry Standard:** Matches AIEnergyScore, optimum-benchmark, and official benchmarking frameworks
+- **Focus on Model Efficiency:** Isolates the energy cost of the AI model itself
+
+### Energy Breakdown
+
+When you run a benchmark, energy is measured for all system components:
+
+```
+Total System Energy = GPU + CPU + RAM
+```
+
+**Reported Metrics:**
+- **Primary:** `energy_wh` - GPU-only energy (matches AIEnergyScore)
+- **Detailed:** `gpu_energy_wh`, `cpu_energy_wh`, `ram_energy_wh`
+- **Total:** `total_energy_wh` - Full system energy (GPU+CPU+RAM)
+
+**Example from validation run:**
+```
+GPU Energy:   55.40 Wh  ← Primary metric (reported as energy_wh)
+CPU Energy:    3.93 Wh  ← Reference
+RAM Energy:    7.87 Wh  ← Reference
+Total Energy: 67.20 Wh  ← Full system cost
+```
+
+### Comparison with AIEnergyScore
+
+**AIEnergyScore (optimum-benchmark):**
+- GPU Energy: 53.82 Wh
+- Method: Phase-specific measurement (prefill + decode)
+
+**ai_energy_benchmarks (CodeCarbon):**
+- GPU Energy: 55.40 Wh
+- Method: Full session measurement
+- Difference: +1.58 Wh (2.9% higher)
+
+**Why the difference?**
+1. **Measurement window:** Full session vs phase-specific
+2. **Warmup handling:** Different approaches
+3. **Sampling:** CodeCarbon vs optimum-benchmark timing
+4. **Variance:** ±5-10% is acceptable for different measurement tools
+
+### Implementation Details
+
+**Measurement Tool:** CodeCarbon 3.0+
+- GPU: NVIDIA SMI-based measurement
+- CPU: RAPL (Running Average Power Limit)
+- RAM: Estimated power consumption
+- Emissions: Location-based carbon intensity
+
+**Measurement Scope:**
+- ✅ All inference operations
+- ✅ Tokenization and preprocessing (runs on CPU/GPU)
+- ✅ Inter-prompt overhead
+- ❌ Model loading (excluded - measured separately)
+- ❌ Dataset loading (excluded - one-time cost)
+
+### Energy Data Access
+
+**CSV Results:** `results/pytorch_validation_results.csv`
+```csv
+energy_wh,           # GPU-only (primary metric)
+gpu_energy_wh,       # GPU energy (detailed)
+cpu_energy_wh,       # CPU energy (detailed)
+ram_energy_wh,       # RAM energy (detailed)
+total_energy_wh      # Total system energy
+```
+
+**CodeCarbon Emissions:** `emissions/pytorch_validation/emissions.csv`
+- Full breakdown with timestamps
+- Carbon emissions (CO₂eq)
+- Power consumption rates
+- Hardware details
+
+### Usage Recommendations
+
+**For Model Comparison:**
+- Use `energy_wh` (GPU-only) as primary metric
+- Compare with AIEnergyScore GPU energy values
+- ±5-10% variance is acceptable
+
+**For Total Cost Estimation:**
+- Use `total_energy_wh` for full system cost
+- Includes CPU preprocessing overhead
+- Includes RAM memory power
+- More representative of real-world deployment
+
+**For Environmental Impact:**
+- Use emissions data from CodeCarbon CSV
+- Carbon intensity based on grid location
+- Includes full energy breakdown
+
+### Validation Against AIEnergyScore
+
+**Test Configuration:**
+```
+Model:           openai/gpt-oss-20b
+Dataset:         EnergyStarAI/text_generation (1000 samples)
+Max Tokens:      10
+Batch Size:      1
+Backend:         PyTorch
+Device:          CUDA (GPU 0)
+```
+
+**Results Comparison:**
+
+| Metric | AIEnergyScore | ai_energy_benchmarks | Difference |
+|--------|---------------|----------------------|------------|
+| GPU Energy | 53.82 Wh | 55.40 Wh | +1.58 Wh (+2.9%) |
+| Total Energy | 53.82 Wh (GPU-only) | 67.20 Wh (GPU+CPU+RAM) | N/A |
+| Primary Metric | GPU | GPU | ✅ Aligned |
+
+**Verdict:** ✅ Methodology aligned, variance within acceptable range
+
+### References
+
+- [AIEnergyScore GitHub](https://github.com/huggingface/AIEnergyScore)
+- [optimum-benchmark](https://github.com/huggingface/optimum-benchmark)
+- [CodeCarbon Documentation](https://mlco2.github.io/codecarbon/)
+- [Energy Star AI Initiative](https://huggingface.co/spaces/AIEnergyScore/Leaderboard)

@@ -94,9 +94,9 @@ class PyTorchBackend(Backend):
             if self.tokenizer.pad_token is None:
                 self.tokenizer.pad_token = self.tokenizer.eos_token
 
-            # Determine dtype
+            # Determine dtype - use "auto" to let transformers choose best dtype
             if self.torch_dtype == "auto":
-                dtype = torch.float16 if self.device == "cuda" else torch.float32
+                dtype = "auto"  # Let transformers decide (will use bfloat16 if available)
             elif self.torch_dtype == "float16":
                 dtype = torch.float16
             elif self.torch_dtype == "bfloat16":
@@ -118,6 +118,7 @@ class PyTorchBackend(Backend):
 
             self._initialized = True
             print(f"Model loaded successfully on {self.device}")
+            print(f"Model dtype: {self.model.dtype}")
 
         except Exception as e:
             print(f"Error loading model: {e}")

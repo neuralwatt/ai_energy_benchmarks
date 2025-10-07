@@ -31,7 +31,7 @@ cd /home/scott/src/ai_energy_benchmarks
 
 # Create virtual environment
 python -m venv venv
-source venv/bin/activate
+source .venv/bin/activate
 
 # Install package
 pip install -e .
