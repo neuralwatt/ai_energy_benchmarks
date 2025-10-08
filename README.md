@@ -1,283 +1,289 @@
-# Instructions benchmarking setup, creating a loadline or testing a loadline.
+# AI Energy Benchmarks
 
-## Branch Management Guide.  This is a private clone of a public repo where we keep neuralwatt specific code.
+A modular benchmarking framework for measuring AI model energy consumption and carbon emissions across different inference backends.
 
 ## Overview
-This guide provides instructions on managing branches between a public repository and a private repository. Follow these steps to keep your repositories organized and in sync.
 
-## Setting Up Remotes
-1. **Add Remotes**
-   Add the public and private repositories as remotes:
-   ```bash
-   # Add the public repository
-   git remote add public https://github.com/neuralwatt/ai_energy_benchmarks.git
-   # Add the private repository
-   git remote add private https://github.com/neuralwatt/neuralwatt_benchmark.git
-1. **Verify Remotes**
-    ```bash
-    git remote -v
-1. **Creating a new Branch and Committing**
-    ```bash
-    git checkout -b new_branch
-    git add .
-    git commit -m "message"
-1. **Pushing Changes to Private Repo**
-    ```bash
-    git push private new_branch
-1. **Pushing Changes to Public Repo**
-    ```bash
-    git push public new_branch
-1. **Keeping Repositories in Sync**
-    ```bash
-    git fetch public #Fetch updates from public
-    git merge public/main #Merge updates from public in to private
-    git push private new_branch #push merged changes to private repo
-1. ** Switching branches**
-    ```bash
-    #If in private repo and want to checkout the public
-    git checkout -b public-main public/main
+AI Energy Benchmarks provides a flexible framework for measuring the energy footprint of AI models during inference. The framework supports multiple backends (vLLM, PyTorch) and integrates with CodeCarbon for accurate emissions tracking.
 
+### Key Features
 
+- **Multiple Backends**: Support for vLLM and PyTorch inference backends
+- **Energy Tracking**: Integrated CodeCarbon metrics for energy consumption and CO₂ emissions
+- **Flexible Configuration**: YAML-based configuration following Hydra/OmegaConf patterns
+- **Dataset Integration**: Built-in support for HuggingFace datasets
+- **Modular Design**: Easy to extend with new backends, metrics, or reporters
+- **Docker Support**: Containerized deployment for reproducible benchmarks
 
-### Disk Space
-Ensure your VM has > 60G free space in / to download the model weights. You can configure ollama to put the model weights somewhere else but I haven't covered that in these instructions. If allocating a single OS disk on datacrunch.io one with 100G total capacity is sufficient for this test.
+## Quick Start
 
-## Quickstart
-1. Create & activate the conda environment
+### Prerequisites
+
+- Python 3.10 or higher
+- NVIDIA GPU with CUDA support (for GPU benchmarks)
+- Docker (optional, for containerized deployment)
+
+### Installation
+
+1. **Create and activate a Python environment**:
 ```bash
 conda create -n ai_energy_benchmark python=3.12
 conda activate ai_energy_benchmark
 ```
 
-2. Run the benchmark
-```
- AI_MODEL=llama3.2 WARMUP=true docker compose up
-```
+2. **Install the package**:
+```bash
+# Basic installation
+pip install -e .
 
+# With PyTorch support
+pip install -e ".[pytorch]"
 
-
-## Running Everything with Docker
-
-To start the services defined in the `docker-compose.yml` file, you have two options: `docker-compose up` or `docker-compose build`.
-
-### Using `docker-compose up`
-
-The `docker-compose up` command will start and run all the services defined in the `docker-compose.yml` file. It will download the image from the github container registry for th benchmarks. 
-
-```sh
-docker-compose up
+# With all development tools
+pip install -e ".[all]"
 ```
 
-This command is useful when you want to start the entire application stack from source with a single command. It will also rebuild the images if there are any changes in the Dockerfiles or the context.
+### Running a Benchmark
 
-### Configure Docker Environment Variables
+#### Using the Shell Script
 
-You can configure the benchmark parameters by modifying the environment variables in the `docker-compose.yml` file:
+```bash
+# Run with default configuration (gpt_oss_120b)
+./run_benchmark.sh
+
+# Run with custom configuration
+./run_benchmark.sh configs/pytorch_test.yaml
+```
+
+#### Using Docker Compose
+
+```bash
+# Run benchmark in Docker
+docker compose up
+```
+
+#### Using Python Directly
+
+```python
+from ai_energy_benchmarks.runner import run_benchmark_from_config
+
+results = run_benchmark_from_config('configs/gpt_oss_120b.yaml')
+```
+
+## Configuration
+
+Benchmarks are configured using YAML files. See `configs/` directory for examples.
+
+### Configuration Structure
 
 ```yaml
-environment:
-  - GPU_MODEL=h100
-  - AI_MODEL=llama3.2
-  - TEST_TIME=240
-  - LIMITING_MODE=none
-  - PRINT_RESPONSES=False
-  - DEBUG=False
-  - OUTPUT_DIR=benchmark_output
-  - IN_DOCKER=True
-  - DEMO_MODE=   # Number of prompts to run, path to custom prompt file, or "true" for default demo (3 prompts)
+name: benchmark_name
+
+backend:
+  type: vllm  # or pytorch
+  device: cuda
+  device_ids: [0]
+  model: openai/gpt-oss-120b
+  task: text-generation
+  endpoint: "http://localhost:8000/v1"  # For vLLM
+
+scenario:
+  dataset_name: AIEnergyScore/text_generation
+  text_column_name: text
+  num_samples: 10
+  truncation: true
+  reasoning: false
+  input_shapes:
+    batch_size: 1
+  generate_kwargs:
+    max_new_tokens: 100
+    min_new_tokens: 50
+
+metrics:
+  type: codecarbon
+  enabled: true
+  project_name: "my_benchmark"
+  output_dir: "./emissions"
+  country_iso_code: "USA"
+
+reporter:
+  type: csv
+  output_file: "./results/benchmark_results.csv"
+
+output_dir: ./benchmark_output
 ```
 
-Or you can override them on the command line:
+### Available Backends
 
-```sh
-GPU_MODEL=h100 AI_MODEL=llama3.2 DEMO_MODE=5 docker-compose up
+#### vLLM Backend
+For high-performance inference with vLLM serving:
+```yaml
+backend:
+  type: vllm
+  endpoint: "http://localhost:8000/v1"
+  model: openai/gpt-oss-120b
 ```
 
-For running in demo mode with the default number of prompts:
-
-```sh
-DEMO_MODE=true docker-compose up
-```
-
-> **Note**: When using environment variables with Docker Compose, the values are passed directly to the Python script as command-line arguments. So `DEMO_MODE=3` will result in running with only 3 prompts from the default prompt file.
-
-### Using `docker-compose build`
-
-The `docker-compose build` command will build the images defined in the `docker-compose.yml` file without starting the containers.
-
-```sh
-docker-compose build
-```
-
-This command is useful when you want to build the images separately before starting the containers. You can then start the containers using:
-
-```sh
-docker-compose up
-```
-
-or
-
-```sh
-docker-compose up --no-build
-```
-
-The `--no-build` flag ensures that the images are not rebuilt if they already exist.
-
-### Summary
-
-- Use `docker-compose up` to build and start the services in one step.
-- Use `docker-compose build` to build the images separately, and then use `docker-compose up` to start the services.
-
-## Running each part seperately
-
-### Command Line Options
-
-When running the benchmark script directly, you can use the following command-line options:
-
-```
-usage: generate_inference_load.py [-h] [--gpu-model GPU_MODEL] [--ai-model AI_MODEL] [--test-time TEST_TIME]
-                                [--limiting-mode {none,frequency,power,agent}] [--print-responses] [--debug]
-                                [--model-list MODEL_LIST] [--output-dir OUTPUT_DIR] [--in-docker] [--demo-mode DEMO_MODE]
-
-Generate inference load on an AI model
-
-options:
-  -h, --help            show this help message and exit
-  --gpu-model GPU_MODEL
-                        The model of the GPU being used (default: 1080ti)
-  --ai-model AI_MODEL   The AI model to be used for inference (default: llama3.2)
-  --test-time TEST_TIME
-                        Duration of each test in seconds (default: 240)
-  --limiting-mode {none,frequency,power}
-                        Mode to limit GPU resources (default: none)
-  --print-responses     Print LLM responses to the console
-  --debug               Enable debug mode with shorter test times and limited variations
-  --output-dir OUTPUT_DIR
-                        Directory where output files will be stored (default: benchmark_output)
-  --in-docker           Indicate running in Docker container
-  --demo-mode DEMO_MODE Number of prompts to run or path to custom prompt file
-```
-
-### Install on Linux using Docker
-1. Ensure Docker is running
-1. Install nvidia container toolkit if not already installed--if you created a VM on datacrunch.io or another ML focused gpu provider it's likely already installed and running.
-    https://hub.docker.com/r/ollama/ollama
-1. Run ollama 
-    ``` 
-    docker run -d --gpus=all -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
-    ```
-
-### Running Ollama
-1. Pull the model you want
-    ```
-    curl -s http://localhost:11434/api/pull -d '{
-        "model": "llama3.2"
-    }'
-    ```
-
-1. Send the prompt
-    ```
-    curl -s http://localhost:11434/api/generate -d '{
-        "model": "llama3.2",
-        "prompt":"Why is the sky blue?"
-    }'
-    ```
-1. Returns the tokens in json as well as time stats for each which can be used as measure of work
-
-### Verify correct gpu utilization
-For now just check task manager or nvidia-smi when sending the prompt. Will come up with programmatic way to do this in the future.
-
-### Models required
-We currently use several sizes of llama models for the benchmarking. Install these models to ollama using the above curl commands:
-* llama3.2
---also tested with these
-* llama3.1:8b
-* llama3.3
-
-### Create the environment
-```
-#install miniconda
-wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
-chmod +x Miniconda3-latest-Linux-x86_64.sh 
-./Miniconda3-latest-Linux-x86_64.sh
-
-#create the conda environment
-conda env create -n <env_name> -f requirements.txt
-conda activate <env_name> 
-```
-
-### Set the correct mode for the test
-The file `generate_inference_load.py` is the main inference test driver. There are several modes it can run in:
-* none -- for testing the default behavior, only does the power monitoring and runs the test but no power limiting or agent execution
-* frequency -- loops through the range of available gpu frequencies to generate a frequency load line. This is a long test.
-* power -- loops through the range of available gpu power caps to generate a power load line. This is a long test.
-
-Open `generate_inference_load.py` and ensure the `limiting_mode` parameter is set to "none" for this initial test. This will run a single pass through the test prompts varied across the 3 models and generate the output for that. 
-
-### Run the test
-```
-python generate_inference_load.py
-```
-
-### Troubleshooting
-Common mistakes I make
-* Ollama docker not running or all required models not available
-* If each prompt looks like it's running slow check the cpu utilization and it shouldn't be really high; ollama is really good at spilling to ram if it runs out of GPU memory and that can happen on 48GB or smaller GPUs with this test.
-* Sometimes python doesn't get correctly installed from the yaml file. If so just conda install python=3.12 with the gpu_load_line env activated
-* Curl command for deterministic output
+Start vLLM server:
 ```bash
-curl http://localhost:11434/api/generate -d '{
-    "model": "llama3.2",
-    "prompt": "Why is the sky blue?",
-    "options": {
-        "temperature": 0,
-        "seed": 42,
-        "num_ctx": 2048
-    }
-}' 
+vllm serve openai/gpt-oss-120b --port 8000
 ```
 
-### Analyzing the results
-A full pass through the prompts takes around 3 minutes on an h100 if using just one model.
-There are two files which are output: nvidia_smi_log.csv which are the gpu performance metrics and inference_load.csv which are metrics about the prompt. If you have jupyter installed you can use the notebook analyze_agent.ipynb to check the performance of your current run against a default run which has previously been generated. For example if you just ran this test on an h100 the outputs will be inferece.nvidia_smi_log.none_h100_llama3.2_<timestamp>.csv and inference.load.none_h100_llama3.2_<timestamp>.csv.  You need to set a few parameters at the top of the notebook to indicate the files you are anayzing.
-
-### Demo Mode
-
-The demo mode provides a way to run the benchmarks with a reduced set of prompts or with custom prompts:
-
-1. **Limited Number of Prompts**: To run with a limited number of prompts from the default file, use:
-   ```
-   python generate_inference_load.py --demo-mode 5
-   ```
-   This will run only the first 5 prompts from the default prompt file.
-
-2. **Custom Prompt File**: To use a custom prompt file, specify the path:
-   ```
-   python generate_inference_load.py --demo-mode custom_prompts.csv
-   ```
-   The custom prompt file should follow the same format as the default prompt file.
-
-3. **Default Demo Mode**: To use the default demo mode with 3 prompts, use:
-   ```
-   python generate_inference_load.py --demo-mode true
-   ```
-   or
-   ```
-   python generate_inference_load.py --demo-mode yes
-   ```
-
-## Windows instructions
-
-### Install on Windows using command line (since nvidia container runtime not supported on windows)
-1. Install ollama via download exe https://github.com/ollama/ollama/tree/main?tab=readme-ov-file
-1. Ensure ollama is running and exposing local api endpoint http://localhost:11434/api/tags should list models installed.
-
-### Alternate Powershell Format for the Curl commands
+#### PyTorch Backend
+For direct PyTorch inference:
+```yaml
+backend:
+  type: pytorch
+  model: gpt2
+  device: cuda
+  device_ids: [0]
 ```
-$body = @{
-    model = "llama3.2"
-    prompt = "Why is the sky blue?"
+
+## Project Structure
+
+```
+ai_energy_benchmarks/
+├── ai_energy_benchmarks/      # Main package
+│   ├── backends/              # Inference backend implementations
+│   │   ├── vllm.py           # vLLM backend
+│   │   └── pytorch.py        # PyTorch backend
+│   ├── config/               # Configuration parsing
+│   ├── datasets/             # Dataset loaders
+│   ├── metrics/              # Metrics collectors (CodeCarbon)
+│   ├── reporters/            # Result reporters (CSV)
+│   ├── utils/                # Utility functions
+│   └── runner.py             # Main benchmark runner
+├── configs/                  # Example configurations
+│   ├── gpt_oss_120b.yaml
+│   ├── pytorch_test.yaml
+│   └── pytorch_validation.yaml
+├── tests/                    # Test suite
+├── docs/                     # Documentation
+├── examples/                 # Example scripts
+├── results/                  # Benchmark results output
+├── emissions/                # CodeCarbon emissions data
+└── run_benchmark.sh          # Convenience runner script
+```
+
+## Development
+
+### Running Tests
+
+```bash
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=ai_energy_benchmarks --cov-report=html
+```
+
+### Code Quality
+
+The project uses:
+- **Black** for code formatting
+- **Ruff** for linting
+- **MyPy** for type checking
+- **Pre-commit** hooks for automated checks
+
+```bash
+# Install pre-commit hooks
+pre-commit install
+
+# Run linting
+ruff check ai_energy_benchmarks/
+
+# Run type checking
+mypy ai_energy_benchmarks/
+```
+
+## Output Files
+
+Benchmarks generate several output files:
+
+- **Results CSV**: Detailed benchmark results (`results/`)
+- **Emissions Data**: CodeCarbon emissions tracking (`emissions/`)
+- **Logs**: Benchmark execution logs (`benchmark_output/`)
+
+## Environment Variables
+
+You can override configuration values using environment variables:
+
+```bash
+# Example: Override model and backend
+BENCHMARK_BACKEND=pytorch \
+BENCHMARK_MODEL=gpt2 \
+./run_benchmark.sh
+```
+
+## Docker
+
+### Building the Image
+
+```bash
+docker build -t ai-energy-benchmark .
+```
+
+### Running with Docker
+
+```bash
+docker run --gpus all \
+  -e BENCHMARK_BACKEND=pytorch \
+  -e BENCHMARK_MODEL=gpt2 \
+  ai-energy-benchmark
+```
+
+### Docker Compose
+
+```bash
+# Start benchmark
+docker compose up
+
+# Clean up
+docker compose down
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **GPU Memory Issues**: Reduce batch size or number of samples in configuration
+2. **vLLM Connection Errors**: Ensure vLLM server is running and endpoint is correct
+3. **Dataset Download Fails**: Check internet connection and HuggingFace dataset availability
+4. **Import Errors**: Ensure all dependencies are installed with `pip install -e ".[all]"`
+
+### Debug Mode
+
+Enable verbose logging by modifying the configuration or setting environment variables.
+
+## Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run tests and linting
+5. Submit a pull request
+
+## License
+
+MIT License - see LICENSE file for details.
+
+## Citation
+
+If you use this framework in your research, please cite:
+
+```bibtex
+@software{ai_energy_benchmarks,
+  title={AI Energy Benchmarks},
+  author={NeuralWatt},
+  year={2025},
+  url={https://github.com/neuralwatt/ai_energy_benchmarks}
 }
+```
 
-Invoke-RestMethod -Uri "http://localhost:11434/api/generate" -Method Post -Body ($body | ConvertTo-Json) -ContentType "application/json"
+## Support
 
+- **Issues**: [GitHub Issues](https://github.com/neuralwatt/ai_energy_benchmarks/issues)
+- **Documentation**: [GitHub Docs](https://github.com/neuralwatt/ai_energy_benchmarks/tree/main/docs)
+- **Email**: info@neuralwatt.com
