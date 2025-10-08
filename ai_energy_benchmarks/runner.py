@@ -156,7 +156,8 @@ class BenchmarkRunner:
 
         print("Running inference...")
         for i, prompt in enumerate(prompts):
-            print(f"  Prompt {i+1}/{len(prompts)}", end="\r")
+            prompt_start = time.time()
+            print(f"  Processing prompt {i+1}/{len(prompts)}...", flush=True)
 
             result = self.backend.run_inference(
                 prompt,
@@ -164,6 +165,9 @@ class BenchmarkRunner:
                 temperature=0.7
             )
             inference_results.append(result)
+
+            prompt_time = time.time() - prompt_start
+            print(f"    Completed in {prompt_time:.1f}s", flush=True)
 
         end_time = time.time()
         print(f"\nInference completed in {end_time - start_time:.2f} seconds")
