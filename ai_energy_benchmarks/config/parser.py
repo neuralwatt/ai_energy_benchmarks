@@ -25,6 +25,7 @@ class ScenarioConfig:
     num_samples: int = 10
     truncation: bool = True
     reasoning: bool = False
+    reasoning_params: Optional[Dict[str, Any]] = None
     input_shapes: Dict[str, Any] = field(default_factory=lambda: {"batch_size": 1})
     generate_kwargs: Dict[str, Any] = field(default_factory=lambda: {
         "max_new_tokens": 100,
@@ -133,6 +134,7 @@ class ConfigParser:
             num_samples=cfg.get('scenario', {}).get('num_samples', 10),
             truncation=cfg.get('scenario', {}).get('truncation', True),
             reasoning=cfg.get('scenario', {}).get('reasoning', False),
+            reasoning_params=cfg.get('scenario', {}).get('reasoning_params'),
             input_shapes=cfg.get('scenario', {}).get('input_shapes', {"batch_size": 1}),
             generate_kwargs=cfg.get('scenario', {}).get('generate_kwargs', {
                 "max_new_tokens": 100,

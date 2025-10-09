@@ -25,7 +25,7 @@ class TestBenchmarkRunnerIntegration:
 
     @patch('ai_energy_benchmarks.backends.vllm.requests.get')
     @patch('ai_energy_benchmarks.backends.vllm.requests.post')
-    @patch('ai_energy_benchmarks.datasets.huggingface.load_dataset')
+    @patch('datasets.load_dataset')
     def test_full_benchmark_run(self, mock_load_dataset, mock_post, mock_get):
         """Test full benchmark execution flow."""
         # Mock vLLM responses

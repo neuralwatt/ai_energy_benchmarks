@@ -69,6 +69,8 @@ class HuggingFaceDataset(Dataset):
                 "HuggingFace datasets library not installed. "
                 "Install with: pip install datasets"
             )
+        except ValueError:
+            raise
         except Exception as e:
             raise RuntimeError(f"Error loading dataset: {e}")
 

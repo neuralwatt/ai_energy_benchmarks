@@ -13,7 +13,7 @@ class TestHuggingFaceDataset:
         dataset = HuggingFaceDataset()
         assert dataset.dataset is None
 
-    @patch('ai_energy_benchmarks.datasets.huggingface.load_dataset')
+    @patch('datasets.load_dataset')
     def test_load_dataset_success(self, mock_load):
         """Test successful dataset loading."""
         mock_dataset = Mock()
@@ -30,7 +30,7 @@ class TestHuggingFaceDataset:
 
         assert len(prompts) == 2
 
-    @patch('ai_energy_benchmarks.datasets.huggingface.load_dataset')
+    @patch('datasets.load_dataset')
     def test_load_dataset_missing_name(self, mock_load):
         """Test loading dataset without name."""
         dataset = HuggingFaceDataset()
@@ -38,7 +38,7 @@ class TestHuggingFaceDataset:
         with pytest.raises(ValueError, match="Dataset name must be specified"):
             dataset.load({})
 
-    @patch('ai_energy_benchmarks.datasets.huggingface.load_dataset')
+    @patch('datasets.load_dataset')
     def test_load_dataset_invalid_column(self, mock_load):
         """Test loading dataset with invalid column name."""
         mock_dataset = Mock()

@@ -2,3 +2,12 @@
 !prompts.csv
 benchmark_output/*.log
 .venv/
+__pycache__/
+.coverage
+ai_energy_benchmarks.egg-info/
+test_results/
+ai_helpers/__pycache__/
+ai_energy_benchmarks/__pycache__/
+ai_energy_benchmarks/*/__pycache__/
+.coverage
+ai_energy_benchmarks.egg-info/

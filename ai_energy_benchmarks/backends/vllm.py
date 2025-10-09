@@ -9,17 +9,45 @@ from ai_energy_benchmarks.backends.base import Backend
 class VLLMBackend(Backend):
     """vLLM backend for high-performance LLM serving."""
 
-    def __init__(self, endpoint: str, model: str, timeout: int = 300):
+    def __init__(self, endpoint: str, model: str, timeout: int = 300, use_harmony: bool = None):
         """Initialize vLLM backend.
 
         Args:
             endpoint: vLLM server endpoint (e.g., "http://localhost:8000/v1")
             model: Model name (e.g., "openai/gpt-oss-120b")
             timeout: Request timeout in seconds
+            use_harmony: Enable Harmony formatting for gpt-oss models (auto-detects if None)
         """
         self.endpoint = endpoint.rstrip('/v1').rstrip('/')
         self.model = model
         self.timeout = timeout
+
+        # Auto-detect Harmony formatting for gpt-oss models
+        if use_harmony is None:
+            self.use_harmony = 'gpt-oss' in model.lower()
+        else:
+            self.use_harmony = use_harmony
+
+    def format_harmony_prompt(self, text: str, reasoning_effort: str = "high") -> str:
+        """Format a prompt using OpenAI Harmony formatting for gpt-oss models.
+
+        Args:
+            text: The user's question/prompt text
+            reasoning_effort: Reasoning level (low, medium, high)
+
+        Returns:
+            Harmony-formatted prompt with system message and user message
+        """
+        # Harmony format structure with system and user messages
+        harmony_prompt = (
+            "<|start|>system<|message|>"
+            "You are a helpful AI assistant.\n"
+            f"Reasoning: {reasoning_effort}\n"
+            "# Valid channels: analysis, commentary, final"
+            "<|end|>\n"
+            f"<|start|>user<|message|>{text}<|end|>"
+        )
+        return harmony_prompt
 
     def validate_environment(self) -> bool:
         """Check if vLLM is running and model is loaded.
@@ -78,6 +106,7 @@ class VLLMBackend(Backend):
         prompt: str,
         max_tokens: int = 100,
         temperature: float = 0.7,
+        reasoning_params: Optional[Dict[str, Any]] = None,
         **kwargs
     ) -> Dict[str, Any]:
         """Run inference on a single prompt via vLLM OpenAI-compatible API.
@@ -86,6 +115,7 @@ class VLLMBackend(Backend):
             prompt: Input text prompt
             max_tokens: Maximum tokens to generate
             temperature: Sampling temperature
+            reasoning_params: Optional reasoning parameters for thinking models
             **kwargs: Additional generation parameters
 
         Returns:
@@ -93,13 +123,43 @@ class VLLMBackend(Backend):
         """
         start_time = time.time()
 
+        # Apply Harmony formatting if enabled for gpt-oss models
+        formatted_prompt = prompt
+        if self.use_harmony:
+            reasoning_effort = "high"  # Default
+            if reasoning_params and 'reasoning_effort' in reasoning_params:
+                reasoning_effort = reasoning_params['reasoning_effort']
+            formatted_prompt = self.format_harmony_prompt(prompt, reasoning_effort)
+            print(f"  Using Harmony format with {reasoning_effort} reasoning")
+
         payload = {
             "model": self.model,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": [{"role": "user", "content": formatted_prompt}],
             "max_tokens": max_tokens,
             "temperature": temperature,
-            **kwargs
         }
+
+        # Add reasoning parameters via extra_body if provided
+        if reasoning_params:
+            # vLLM/OpenAI API supports extra_body for custom parameters
+            extra_body = {}
+
+            # Map reasoning effort to model-specific parameters
+            if 'reasoning_effort' in reasoning_params:
+                effort = reasoning_params['reasoning_effort']
+                extra_body['reasoning_effort'] = effort
+                print(f"Using reasoning effort: {effort}")
+
+            # Pass through other reasoning parameters
+            for key, value in reasoning_params.items():
+                if key not in extra_body:
+                    extra_body[key] = value
+
+            if extra_body:
+                payload['extra_body'] = extra_body
+
+        # Add any additional kwargs
+        payload.update(kwargs)
 
         try:
             response = requests.post(

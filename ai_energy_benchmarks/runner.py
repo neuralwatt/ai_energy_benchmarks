@@ -154,6 +154,17 @@ class BenchmarkRunner:
         start_time = time.time()
         inference_results = []
 
+        # Prepare generation kwargs
+        gen_kwargs = {
+            'max_tokens': self.config.scenario.generate_kwargs.get('max_new_tokens', 100),
+            'temperature': 0.7
+        }
+
+        # Add reasoning parameters if enabled
+        if self.config.scenario.reasoning and self.config.scenario.reasoning_params:
+            print(f"Reasoning enabled with params: {self.config.scenario.reasoning_params}")
+            gen_kwargs['reasoning_params'] = self.config.scenario.reasoning_params
+
         print("Running inference...")
         for i, prompt in enumerate(prompts):
             prompt_start = time.time()
@@ -161,8 +172,7 @@ class BenchmarkRunner:
 
             result = self.backend.run_inference(
                 prompt,
-                max_tokens=self.config.scenario.generate_kwargs.get('max_new_tokens', 100),
-                temperature=0.7
+                **gen_kwargs
             )
             inference_results.append(result)
 
