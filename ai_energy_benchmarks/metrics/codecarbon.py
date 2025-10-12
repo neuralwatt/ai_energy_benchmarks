@@ -1,9 +1,21 @@
 """CodeCarbon metrics collector for comprehensive energy measurement."""
 
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Protocol
 
 from ai_energy_benchmarks.metrics.base import MetricsCollector
+
+
+class _TrackerProtocol(Protocol):
+    """Simplified protocol describing the CodeCarbon tracker behaviour."""
+
+    final_emissions_data: Any  # CodeCarbon supplies a rich data object we treat opaquely
+
+    def start(self) -> None:
+        ...
+
+    def stop(self) -> Optional[float]:  # Tracker returns total emissions in kilograms
+        ...
 
 
 class CodeCarbonCollector(MetricsCollector):
@@ -28,7 +40,7 @@ class CodeCarbonCollector(MetricsCollector):
         region: Optional[str] = None,
         gpu_ids: Optional[list] = None,
         save_to_file: bool = True,
-        log_level: str = "warning"
+        log_level: str = "warning",
     ):
         """Initialize CodeCarbon tracker.
 
@@ -48,8 +60,8 @@ class CodeCarbonCollector(MetricsCollector):
         self.gpu_ids = gpu_ids
         self.save_to_file = save_to_file
         self.log_level = log_level
-        self.tracker = None
-        self._tracker_started = False
+        self.tracker: Optional[_TrackerProtocol] = None
+        self._tracker_started: bool = False
 
         # Create output directory
         os.makedirs(output_dir, exist_ok=True)
@@ -57,7 +69,7 @@ class CodeCarbonCollector(MetricsCollector):
     def start(self):
         """Start energy tracking."""
         try:
-            from codecarbon import EmissionsTracker
+            from codecarbon import EmissionsTracker  # type: ignore[import-untyped]
 
             # CodeCarbon 3.0+ doesn't use country_iso_code/region
             # It uses tracking_mode and co2_signal_api_token instead
@@ -67,7 +79,7 @@ class CodeCarbonCollector(MetricsCollector):
                 log_level=self.log_level,
                 save_to_file=self.save_to_file,
                 gpu_ids=self.gpu_ids,
-                tracking_mode="machine"  # Use machine mode for local tracking
+                tracking_mode="machine",  # Use machine mode for local tracking
             )
 
             self.tracker.start()
@@ -80,6 +92,7 @@ class CodeCarbonCollector(MetricsCollector):
         except Exception as e:
             print(f"Error starting CodeCarbon tracker: {e}")
             import traceback
+
             traceback.print_exc()
 
     def stop(self) -> Dict[str, Any]:
@@ -105,24 +118,24 @@ class CodeCarbonCollector(MetricsCollector):
                 "total_energy_kwh": 0.0,
                 "total_energy_wh": 0.0,
                 "duration_seconds": 0.0,
-                "error": "Tracker not started or codecarbon not installed"
+                "error": "Tracker not started or codecarbon not installed",
             }
 
         try:
             emissions_kg = self.tracker.stop()
 
             # Get detailed emissions data
-            if hasattr(self.tracker, 'final_emissions_data'):
+            if hasattr(self.tracker, "final_emissions_data"):
                 data = self.tracker.final_emissions_data
 
                 # Extract component energies (in kWh)
-                gpu_energy_kwh = data.gpu_energy if hasattr(data, 'gpu_energy') else 0.0
-                cpu_energy_kwh = data.cpu_energy if hasattr(data, 'cpu_energy') else 0.0
-                ram_energy_kwh = data.ram_energy if hasattr(data, 'ram_energy') else 0.0
-                total_energy_kwh = data.energy_consumed if hasattr(data, 'energy_consumed') else 0.0
+                gpu_energy_kwh = data.gpu_energy if hasattr(data, "gpu_energy") else 0.0
+                cpu_energy_kwh = data.cpu_energy if hasattr(data, "cpu_energy") else 0.0
+                ram_energy_kwh = data.ram_energy if hasattr(data, "ram_energy") else 0.0
+                total_energy_kwh = data.energy_consumed if hasattr(data, "energy_consumed") else 0.0
 
-                duration = data.duration if hasattr(data, 'duration') else 0.0
-                carbon_intensity = data.emissions_rate if hasattr(data, 'emissions_rate') else 0.0
+                duration = data.duration if hasattr(data, "duration") else 0.0
+                carbon_intensity = data.emissions_rate if hasattr(data, "emissions_rate") else 0.0
             else:
                 # Fallback if final_emissions_data not available
                 gpu_energy_kwh = 0.0
@@ -139,11 +152,9 @@ class CodeCarbonCollector(MetricsCollector):
             return {
                 "emissions_kg_co2eq": emissions_kg or 0.0,
                 "emissions_g_co2eq": (emissions_kg or 0.0) * 1000,
-
                 # Primary energy metric (GPU-only, matches AIEnergyScore)
                 "energy_kwh": gpu_energy_kwh,
                 "energy_wh": gpu_energy_kwh * 1000,
-
                 # Detailed energy breakdown
                 "gpu_energy_kwh": gpu_energy_kwh,
                 "gpu_energy_wh": gpu_energy_kwh * 1000,
@@ -151,17 +162,15 @@ class CodeCarbonCollector(MetricsCollector):
                 "cpu_energy_wh": cpu_energy_kwh * 1000,
                 "ram_energy_kwh": ram_energy_kwh,
                 "ram_energy_wh": ram_energy_kwh * 1000,
-
                 # Total system energy (GPU+CPU+RAM)
                 "total_energy_kwh": total_energy_kwh,
                 "total_energy_wh": total_energy_kwh * 1000,
-
                 # Other metrics
                 "duration_seconds": duration,
                 "carbon_intensity_g_per_kwh": carbon_intensity,
                 "project_name": self.project_name,
                 "country": self.country_iso_code,
-                "region": self.region
+                "region": self.region,
             }
 
         except Exception as e:
@@ -172,7 +181,7 @@ class CodeCarbonCollector(MetricsCollector):
                 "cpu_energy_kwh": 0.0,
                 "ram_energy_kwh": 0.0,
                 "total_energy_kwh": 0.0,
-                "error": f"Error stopping tracker: {e}"
+                "error": f"Error stopping tracker: {e}",
             }
 
     def get_current_metrics(self) -> Dict[str, Any]:
@@ -185,10 +194,7 @@ class CodeCarbonCollector(MetricsCollector):
             return {"error": "Tracker not started"}
 
         # CodeCarbon doesn't provide current metrics, only final
-        return {
-            "status": "tracking",
-            "note": "Metrics available after stop()"
-        }
+        return {"status": "tracking", "note": "Metrics available after stop()"}
 
     def get_metadata(self) -> Dict[str, Any]:
         """Get collector metadata.
@@ -206,12 +212,7 @@ class CodeCarbonCollector(MetricsCollector):
         return {
             "name": "codecarbon",
             "version": version,
-            "capabilities": [
-                "gpu_energy",
-                "cpu_energy",
-                "ram_energy",
-                "carbon_emissions"
-            ],
+            "capabilities": ["gpu_energy", "cpu_energy", "ram_energy", "carbon_emissions"],
             "project_name": self.project_name,
-            "output_dir": self.output_dir
+            "output_dir": self.output_dir,
         }

@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 @dataclass
 class GPUStats:
     """GPU statistics snapshot."""
+
     gpu_id: int
     utilization_percent: float
     memory_used_mb: float
@@ -36,18 +37,18 @@ class GPUMonitor:
             # Try nvidia-smi first
             result = subprocess.run(
                 [
-                    'nvidia-smi',
-                    '--query-gpu=index,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw',
-                    '--format=csv,noheader,nounits',
-                    f'--id={gpu_id}'
+                    "nvidia-smi",
+                    "--query-gpu=index,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw",
+                    "--format=csv,noheader,nounits",
+                    f"--id={gpu_id}",
                 ],
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=5,
             )
 
             if result.returncode == 0:
-                parts = result.stdout.strip().split(',')
+                parts = result.stdout.strip().split(",")
                 if len(parts) >= 4:
                     memory_used = float(parts[2])
                     memory_total = float(parts[3])
@@ -57,31 +58,45 @@ class GPUMonitor:
                         utilization_percent=float(parts[1]),
                         memory_used_mb=memory_used,
                         memory_total_mb=memory_total,
-                        memory_percent=(memory_used / memory_total * 100) if memory_total > 0 else 0,
-                        temperature_c=float(parts[4]) if len(parts) > 4 and parts[4].strip() else None,
-                        power_draw_w=float(parts[5]) if len(parts) > 5 and parts[5].strip() else None,
-                        timestamp=time.time()
+                        memory_percent=(
+                            (memory_used / memory_total * 100) if memory_total > 0 else 0
+                        ),
+                        temperature_c=(
+                            float(parts[4]) if len(parts) > 4 and parts[4].strip() else None
+                        ),
+                        power_draw_w=(
+                            float(parts[5]) if len(parts) > 5 and parts[5].strip() else None
+                        ),
+                        timestamp=time.time(),
                     )
-        except (subprocess.TimeoutExpired, subprocess.CalledProcessError, ValueError, FileNotFoundError):
+        except (
+            subprocess.TimeoutExpired,
+            subprocess.CalledProcessError,
+            ValueError,
+            FileNotFoundError,
+        ):
             pass
 
         # Try PyTorch CUDA if nvidia-smi fails
         try:
             import torch
+
             if torch.cuda.is_available() and gpu_id < torch.cuda.device_count():
                 props = torch.cuda.get_device_properties(gpu_id)
-                memory_reserved = torch.cuda.memory_reserved(gpu_id) / (1024 ** 2)  # MB
-                memory_total = props.total_memory / (1024 ** 2)  # MB
+                memory_reserved = torch.cuda.memory_reserved(gpu_id) / (1024**2)  # MB
+                memory_total = props.total_memory / (1024**2)  # MB
 
                 return GPUStats(
                     gpu_id=gpu_id,
                     utilization_percent=0.0,  # PyTorch doesn't provide utilization
                     memory_used_mb=memory_reserved,
                     memory_total_mb=memory_total,
-                    memory_percent=(memory_reserved / memory_total * 100) if memory_total > 0 else 0,
+                    memory_percent=(
+                        (memory_reserved / memory_total * 100) if memory_total > 0 else 0
+                    ),
                     temperature_c=None,
                     power_draw_w=None,
-                    timestamp=time.time()
+                    timestamp=time.time(),
                 )
         except ImportError:
             pass
@@ -90,11 +105,7 @@ class GPUMonitor:
 
     @staticmethod
     def monitor_during_operation(
-        operation_func,
-        gpu_id: int = 0,
-        interval: float = 0.5,
-        *args,
-        **kwargs
+        operation_func, gpu_id: int = 0, interval: float = 0.5, *args, **kwargs
     ) -> Dict[str, Any]:
         """Monitor GPU during an operation.
 
@@ -164,21 +175,21 @@ class GPUMonitor:
             gpu_active = False
 
         return {
-            'result': result,
-            'success': success,
-            'error': error,
-            'duration': end_time - start_time,
-            'gpu_stats': {
-                'gpu_id': gpu_id,
-                'samples': len(stats_list),
-                'avg_utilization_percent': avg_utilization,
-                'max_utilization_percent': max_utilization,
-                'avg_memory_mb': avg_memory,
-                'max_memory_mb': max_memory,
-                'avg_power_w': avg_power,
-                'max_power_w': max_power,
-                'gpu_active': gpu_active
-            }
+            "result": result,
+            "success": success,
+            "error": error,
+            "duration": end_time - start_time,
+            "gpu_stats": {
+                "gpu_id": gpu_id,
+                "samples": len(stats_list),
+                "avg_utilization_percent": avg_utilization,
+                "max_utilization_percent": max_utilization,
+                "avg_memory_mb": avg_memory,
+                "max_memory_mb": max_memory,
+                "avg_power_w": avg_power,
+                "max_power_w": max_power,
+                "gpu_active": gpu_active,
+            },
         }
 
     @staticmethod
@@ -205,7 +216,9 @@ class GPUMonitor:
         if stats:
             print(f"GPU {stats.gpu_id}:")
             print(f"  Utilization: {stats.utilization_percent:.1f}%")
-            print(f"  Memory: {stats.memory_used_mb:.0f}/{stats.memory_total_mb:.0f} MB ({stats.memory_percent:.1f}%)")
+            print(
+                f"  Memory: {stats.memory_used_mb:.0f}/{stats.memory_total_mb:.0f} MB ({stats.memory_percent:.1f}%)"
+            )
             if stats.temperature_c is not None:
                 print(f"  Temperature: {stats.temperature_c:.1f}°C")
             if stats.power_draw_w is not None:

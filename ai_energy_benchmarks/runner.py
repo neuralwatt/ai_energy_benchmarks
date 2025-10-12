@@ -1,11 +1,13 @@
 """Main benchmark runner for POC."""
 
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
+from ai_energy_benchmarks.backends.base import Backend
 from ai_energy_benchmarks.backends.pytorch import PyTorchBackend
 from ai_energy_benchmarks.backends.vllm import VLLMBackend
 from ai_energy_benchmarks.config.parser import BenchmarkConfig, ConfigParser
+from ai_energy_benchmarks.datasets.base import Dataset
 from ai_energy_benchmarks.datasets.huggingface import HuggingFaceDataset
 from ai_energy_benchmarks.metrics.codecarbon import CodeCarbonCollector
 from ai_energy_benchmarks.reporters.csv_reporter import CSVReporter
@@ -21,10 +23,10 @@ class BenchmarkRunner:
             config: Benchmark configuration
         """
         self.config = config
-        self.backend = None
-        self.dataset = None
-        self.metrics_collector = None
-        self.reporter = None
+        self.backend: Optional[Backend] = None
+        self.dataset: Optional[Dataset] = None
+        self.metrics_collector: Optional[CodeCarbonCollector] = None
+        self.reporter: Optional[CSVReporter] = None
 
         # Initialize components
         self._initialize_backend()
@@ -36,16 +38,19 @@ class BenchmarkRunner:
         """Initialize inference backend."""
         backend_type = self.config.backend.type
 
-        if backend_type == 'vllm':
+        if backend_type == "vllm":
+            endpoint = self.config.backend.endpoint
+            if endpoint is None:
+                raise ValueError("vLLM backend requires endpoint configuration")
             self.backend = VLLMBackend(
-                endpoint=self.config.backend.endpoint,
-                model=self.config.backend.model
+                endpoint=endpoint,
+                model=self.config.backend.model,
             )
-        elif backend_type == 'pytorch':
+        elif backend_type == "pytorch":
             self.backend = PyTorchBackend(
                 model=self.config.backend.model,
                 device=self.config.backend.device,
-                device_ids=self.config.backend.device_ids
+                device_ids=self.config.backend.device_ids,
             )
         else:
             raise ValueError(f"Unknown backend type: {backend_type}")
@@ -63,13 +68,13 @@ class BenchmarkRunner:
             print("Metrics collection disabled")
             return
 
-        if self.config.metrics.type == 'codecarbon':
+        if self.config.metrics.type == "codecarbon":
             self.metrics_collector = CodeCarbonCollector(
                 project_name=self.config.metrics.project_name,
                 output_dir=self.config.metrics.output_dir,
                 country_iso_code=self.config.metrics.country_iso_code,
                 region=self.config.metrics.region,
-                gpu_ids=self.config.backend.device_ids
+                gpu_ids=self.config.backend.device_ids,
             )
             print("Initialized CodeCarbon metrics collector")
         else:
@@ -77,10 +82,8 @@ class BenchmarkRunner:
 
     def _initialize_reporter(self):
         """Initialize results reporter."""
-        if self.config.reporter.type == 'csv':
-            self.reporter = CSVReporter(
-                output_file=self.config.reporter.output_file
-            )
+        if self.config.reporter.type == "csv":
+            self.reporter = CSVReporter(output_file=self.config.reporter.output_file)
             print("Initialized CSV reporter")
         else:
             raise ValueError(f"Unknown reporter type: {self.config.reporter.type}")
@@ -101,21 +104,24 @@ class BenchmarkRunner:
             return False
 
         # Validate backend
-        if not self.backend.validate_environment():
+        backend = self.backend
+        if backend is None or not backend.validate_environment():
             print("Backend validation failed")
             return False
 
-        if not self.backend.health_check():
+        if not backend.health_check():
             print("Backend health check failed")
             return False
 
         # Validate dataset
-        if not self.dataset.validate():
+        dataset = self.dataset
+        if dataset is None or not dataset.validate():
             print("Dataset validation failed")
             return False
 
         # Validate reporter
-        if not self.reporter.validate():
+        reporter = self.reporter
+        if reporter is None or not reporter.validate():
             print("Reporter validation failed")
             return False
 
@@ -140,16 +146,23 @@ class BenchmarkRunner:
 
         # Load dataset
         print("Loading dataset...")
-        prompts = self.dataset.load({
-            'name': self.config.scenario.dataset_name,
-            'text_column': self.config.scenario.text_column_name,
-            'num_samples': self.config.scenario.num_samples
-        })
+        dataset = self.dataset
+        if dataset is None:
+            raise RuntimeError("Dataset not initialized")
+
+        prompts = dataset.load(
+            {
+                "name": self.config.scenario.dataset_name,
+                "text_column": self.config.scenario.text_column_name,
+                "num_samples": self.config.scenario.num_samples,
+            }
+        )
 
         # Start metrics collection
-        if self.metrics_collector:
+        collector = self.metrics_collector
+        if collector is not None:
             print("Starting metrics collection...")
-            self.metrics_collector.start()
+            collector.start()
 
         # Run inference on all prompts
         start_time = time.time()
@@ -157,24 +170,25 @@ class BenchmarkRunner:
 
         # Prepare generation kwargs
         gen_kwargs = {
-            'max_tokens': self.config.scenario.generate_kwargs.get('max_new_tokens', 100),
-            'temperature': 0.7
+            "max_tokens": self.config.scenario.generate_kwargs.get("max_new_tokens", 100),
+            "temperature": 0.7,
         }
 
         # Add reasoning parameters if enabled
         if self.config.scenario.reasoning and self.config.scenario.reasoning_params:
             print(f"Reasoning enabled with params: {self.config.scenario.reasoning_params}")
-            gen_kwargs['reasoning_params'] = self.config.scenario.reasoning_params
+            gen_kwargs["reasoning_params"] = self.config.scenario.reasoning_params
 
         print("Running inference...")
+        backend = self.backend
+        if backend is None:
+            raise RuntimeError("Backend not initialized")
+
         for i, prompt in enumerate(prompts):
             prompt_start = time.time()
             print(f"  Processing prompt {i+1}/{len(prompts)}...", flush=True)
 
-            result = self.backend.run_inference(
-                prompt,
-                **gen_kwargs
-            )
+            result = backend.run_inference(prompt, **gen_kwargs)
             inference_results.append(result)
 
             prompt_time = time.time() - prompt_start
@@ -184,21 +198,21 @@ class BenchmarkRunner:
         print(f"\nInference completed in {end_time - start_time:.2f} seconds")
 
         # Stop metrics collection
-        energy_metrics = {}
-        if self.metrics_collector:
+        energy_metrics: Dict[str, Any] = {}
+        if collector is not None:
             print("Stopping metrics collection...")
-            energy_metrics = self.metrics_collector.stop()
+            energy_metrics = collector.stop()
 
         # Aggregate results
-        results = self._aggregate_results(
-            inference_results,
-            energy_metrics,
-            end_time - start_time
-        )
+        results = self._aggregate_results(inference_results, energy_metrics, end_time - start_time)
 
         # Report results
         print("Reporting results...")
-        self.reporter.report(results)
+        reporter = self.reporter
+        if reporter is None:
+            raise RuntimeError("Reporter not initialized")
+
+        reporter.report(results)
 
         print("\n=== Benchmark Complete ===")
         print(f"Total prompts: {len(prompts)}")
@@ -215,7 +229,7 @@ class BenchmarkRunner:
         self,
         inference_results: List[Dict[str, Any]],
         energy_metrics: Dict[str, Any],
-        total_duration: float
+        total_duration: float,
     ) -> Dict[str, Any]:
         """Aggregate benchmark results.
 
@@ -227,42 +241,60 @@ class BenchmarkRunner:
         Returns:
             Aggregated results dictionary
         """
-        successful = [r for r in inference_results if r.get('success', False)]
-        failed = [r for r in inference_results if not r.get('success', False)]
+        successful = [r for r in inference_results if r.get("success", False)]
+        failed = [r for r in inference_results if not r.get("success", False)]
 
         # Calculate stats
-        total_tokens = sum(r.get('total_tokens', 0) for r in successful)
-        total_prompt_tokens = sum(r.get('prompt_tokens', 0) for r in successful)
-        total_completion_tokens = sum(r.get('completion_tokens', 0) for r in successful)
+        total_tokens = sum(r.get("total_tokens", 0) for r in successful)
+        total_prompt_tokens = sum(r.get("prompt_tokens", 0) for r in successful)
+        total_completion_tokens = sum(r.get("completion_tokens", 0) for r in successful)
 
-        avg_latency = sum(r.get('latency_seconds', 0) for r in successful) / len(successful) if successful else 0
+        avg_latency = (
+            sum(r.get("latency_seconds", 0) for r in successful) / len(successful)
+            if successful
+            else 0
+        )
 
         return {
-            'config': {
-                'name': self.config.name,
-                'backend': self.config.backend.type,
-                'model': self.config.backend.model,
-                'dataset': self.config.scenario.dataset_name,
-                'num_samples': self.config.scenario.num_samples
+            "config": {
+                "name": self.config.name,
+                "backend": self.config.backend.type,
+                "model": self.config.backend.model,
+                "dataset": self.config.scenario.dataset_name,
+                "num_samples": self.config.scenario.num_samples,
             },
-            'summary': {
-                'total_prompts': len(inference_results),
-                'successful_prompts': len(successful),
-                'failed_prompts': len(failed),
-                'total_duration_seconds': total_duration,
-                'avg_latency_seconds': avg_latency,
-                'total_tokens': total_tokens,
-                'total_prompt_tokens': total_prompt_tokens,
-                'total_completion_tokens': total_completion_tokens,
-                'throughput_tokens_per_second': total_tokens / total_duration if total_duration > 0 else 0
+            "summary": {
+                "total_prompts": len(inference_results),
+                "successful_prompts": len(successful),
+                "failed_prompts": len(failed),
+                "total_duration_seconds": total_duration,
+                "avg_latency_seconds": avg_latency,
+                "total_tokens": total_tokens,
+                "total_prompt_tokens": total_prompt_tokens,
+                "total_completion_tokens": total_completion_tokens,
+                "throughput_tokens_per_second": (
+                    total_tokens / total_duration if total_duration > 0 else 0
+                ),
             },
-            'energy': energy_metrics,
-            'backend_info': self.backend.get_endpoint_info(),
-            'metrics_metadata': self.metrics_collector.get_metadata() if self.metrics_collector else {}
+            "energy": energy_metrics,
+            "backend_info": self._get_backend_info(),
+            "metrics_metadata": self._get_metrics_metadata(),
         }
 
+    def _get_backend_info(self) -> Dict[str, Any]:
+        if self.backend is None:
+            raise RuntimeError("Backend not initialized")
+        return self.backend.get_endpoint_info()
 
-def run_benchmark_from_config(config_path: str, overrides: Dict[str, Any] = None) -> Dict[str, Any]:
+    def _get_metrics_metadata(self) -> Dict[str, Any]:
+        if self.metrics_collector is None:
+            return {}
+        return self.metrics_collector.get_metadata()
+
+
+def run_benchmark_from_config(
+    config_path: str, overrides: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
     """Run benchmark from configuration file.
 
     Args:

@@ -10,7 +10,7 @@ class HuggingFaceDataset(Dataset):
 
     def __init__(self):
         """Initialize HuggingFace dataset loader."""
-        self.dataset = None
+        self.dataset: Any = None
 
     def load(self, config: Dict[str, Any]) -> List[str]:
         """Load prompts from HuggingFace dataset.
@@ -27,48 +27,44 @@ class HuggingFaceDataset(Dataset):
             List of prompt strings
         """
         try:
-            from datasets import load_dataset
+            from datasets import load_dataset  # type: ignore[import-untyped]
 
-            dataset_name = config.get('name', config.get('dataset_name'))
+            dataset_name = config.get("name", config.get("dataset_name"))
             if not dataset_name:
                 raise ValueError("Dataset name must be specified in config")
 
-            split = config.get('split', 'train')
-            cache_dir = config.get('cache_dir')
+            split = config.get("split", "train")
+            cache_dir = config.get("cache_dir")
 
             print(f"Loading dataset: {dataset_name} (split: {split})")
 
             # Load dataset
-            self.dataset = load_dataset(
-                dataset_name,
-                split=split,
-                cache_dir=cache_dir
-            )
+            self.dataset = load_dataset(dataset_name, split=split, cache_dir=cache_dir)
 
             # Extract prompts from specified column
-            text_column = config.get('text_column', config.get('text_column_name', 'text'))
+            text_column = config.get("text_column", config.get("text_column_name", "text"))
             if text_column not in self.dataset.column_names:
                 raise ValueError(
                     f"Column '{text_column}' not found in dataset. "
                     f"Available columns: {self.dataset.column_names}"
                 )
 
-            prompts = self.dataset[text_column]
+            prompts_data = self.dataset[text_column]
+            prompts_list = [str(item) for item in prompts_data]
 
             # Limit number of samples if specified
-            num_samples = config.get('num_samples')
+            num_samples = config.get("num_samples")
             if num_samples and num_samples > 0:
-                prompts = prompts[:num_samples]
+                prompts_list = prompts_list[:num_samples]
                 print(f"Loaded {num_samples} samples from {dataset_name}")
             else:
-                print(f"Loaded {len(prompts)} samples from {dataset_name}")
+                print(f"Loaded {len(prompts_list)} samples from {dataset_name}")
 
-            return prompts
+            return prompts_list
 
         except ImportError as err:
             raise ImportError(
-                "HuggingFace datasets library not installed. "
-                "Install with: pip install datasets"
+                "HuggingFace datasets library not installed. " "Install with: pip install datasets"
             ) from err
         except ValueError:
             raise

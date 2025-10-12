@@ -3,7 +3,7 @@
 import csv
 import os
 from datetime import datetime, timezone
-from typing import Any, Dict
+from typing import Any, Dict, List, Tuple
 
 from ai_energy_benchmarks.reporters.base import Reporter
 
@@ -32,13 +32,13 @@ class CSVReporter(Reporter):
         flattened = self._flatten_dict(results)
 
         # Add timestamp
-        flattened['timestamp'] = datetime.now(timezone.utc).isoformat()
+        flattened["timestamp"] = datetime.now(timezone.utc).isoformat()
 
         # Check if file exists to determine if we need headers
         file_exists = os.path.exists(self.output_file)
 
         try:
-            with open(self.output_file, 'a', newline='') as f:
+            with open(self.output_file, "a", newline="") as f:
                 writer = csv.DictWriter(f, fieldnames=flattened.keys())
 
                 # Write header if new file
@@ -67,7 +67,9 @@ class CSVReporter(Reporter):
         except Exception:
             return False
 
-    def _flatten_dict(self, d: Dict[str, Any], parent_key: str = '', sep: str = '_') -> Dict[str, Any]:
+    def _flatten_dict(
+        self, d: Dict[str, Any], parent_key: str = "", sep: str = "_"
+    ) -> Dict[str, Any]:
         """Flatten nested dictionary.
 
         Args:
@@ -78,7 +80,7 @@ class CSVReporter(Reporter):
         Returns:
             Flattened dictionary
         """
-        items = []
+        items: List[Tuple[str, Any]] = []
         for k, v in d.items():
             new_key = f"{parent_key}{sep}{k}" if parent_key else k
 
@@ -86,7 +88,7 @@ class CSVReporter(Reporter):
                 items.extend(self._flatten_dict(v, new_key, sep=sep).items())
             elif isinstance(v, list):
                 # Convert lists to comma-separated strings
-                items.append((new_key, ','.join(map(str, v))))
+                items.append((new_key, ",".join(map(str, v))))
             else:
                 items.append((new_key, v))
 
