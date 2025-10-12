@@ -8,7 +8,7 @@ class MetricsCollector(ABC):
     """Base interface for all metrics collectors."""
 
     @abstractmethod
-    def start(self):
+    def start(self) -> None:
         """Start metrics collection."""
         pass
 
