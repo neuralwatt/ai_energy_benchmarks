@@ -92,37 +92,33 @@ class PyTorchBackend(Backend):
             print(f"Loading model: {self.model_name}")
             print(f"Device: {self.device}, Device Map: {self.device_map}")
 
-            # Load tokenizer
             self.tokenizer = AutoTokenizer.from_pretrained(
                 self.model_name,
                 trust_remote_code=True
             )
 
-            # Set padding token if not set
             if self.tokenizer.pad_token is None:
                 self.tokenizer.pad_token = self.tokenizer.eos_token
 
-            # Determine dtype - use "auto" to let transformers choose best dtype
-            if self.torch_dtype == "auto":
-                dtype = "auto"  # Let transformers decide (will use bfloat16 if available)
-            elif self.torch_dtype == "float16":
-                dtype = torch.float16
-            elif self.torch_dtype == "bfloat16":
-                dtype = torch.bfloat16
-            else:
-                dtype = torch.float32
+            requested_dtype = self.torch_dtype
+            dtype_map = {
+                "float16": torch.float16,
+                "bfloat16": torch.bfloat16,
+                "float32": torch.float32,
+            }
 
-            # Load model (use 'dtype' instead of deprecated 'torch_dtype')
+            if requested_dtype == "auto":
+                load_dtype = "auto"
+                requested_torch_dtype = None
+            else:
+                requested_torch_dtype = dtype_map.get(requested_dtype, torch.float32)
+                load_dtype = requested_torch_dtype
+
             load_kwargs = {
                 "trust_remote_code": True,
                 "device_map": self.device_map,
+                "torch_dtype": load_dtype
             }
-
-            # Add dtype parameter
-            if dtype == "auto":
-                load_kwargs["torch_dtype"] = "auto"
-            else:
-                load_kwargs["torch_dtype"] = dtype
 
             if self.max_memory:
                 load_kwargs["max_memory"] = self.max_memory
@@ -132,8 +128,20 @@ class PyTorchBackend(Backend):
                 **load_kwargs
             )
 
-            # Set to eval mode
             self.model.eval()
+
+            actual_dtype = getattr(self.model, "dtype", None)
+            print(f"Requested torch_dtype: {requested_dtype}")
+            if actual_dtype is not None:
+                print(f"Model dtype in use: {actual_dtype}")
+                if requested_torch_dtype is None:
+                    print("Model dtype was auto-selected.")
+                elif actual_dtype == requested_torch_dtype:
+                    print("Model dtype matches requested torch_dtype.")
+                else:
+                    print("Model dtype differs from requested torch_dtype.")
+            else:
+                print("Model dtype could not be determined.")
 
             self._initialized = True
             print(f"Model loaded successfully on {self.device}")

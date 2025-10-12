@@ -8,21 +8,10 @@ codecarbon>=2.3.0
 omegaconf>=2.3.0
 pyyaml>=6.0
 
-# Analysis and visualization (legacy, can be removed later)
+# Analysis and visualization helpers
 pandas
 matplotlib
 
-# Optional: PyTorch backend support
-# Uncomment to enable PyTorch backend
-# torch>=2.0.0
-# transformers>=4.30.0
-# accelerate
-
-# Optional: Development dependencies
-# Uncomment for development
-# pytest>=7.4.0
-# pytest-cov>=4.1.0
-# pytest-mock>=3.11.0
-# ruff>=0.1.0
-# mypy>=1.5.0
-# black>=23.7.0
+## Optional extras
+# Install PyTorch support with pip install -e ".[pytorch]"
+# Install all extras (dev + PyTorch) with pip install -e ".[all]"

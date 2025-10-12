@@ -2,7 +2,7 @@
 
 import csv
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any
 from ai_energy_benchmarks.reporters.base import Reporter
 
@@ -31,7 +31,7 @@ class CSVReporter(Reporter):
         flattened = self._flatten_dict(results)
 
         # Add timestamp
-        flattened['timestamp'] = datetime.utcnow().isoformat()
+        flattened['timestamp'] = datetime.now(timezone.utc).isoformat()
 
         # Check if file exists to determine if we need headers
         file_exists = os.path.exists(self.output_file)

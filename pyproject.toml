@@ -50,10 +50,20 @@ dev = [
 pytorch = [
     "torch>=2.0.0",
     "transformers>=4.30.0",
+    "accelerate",
 ]
 
 all = [
-    "ai_energy_benchmarks[dev,pytorch]",
+    "torch>=2.0.0",
+    "transformers>=4.30.0",
+    "accelerate",
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.11.0",
+    "ruff>=0.1.0",
+    "mypy>=1.5.0",
+    "black>=23.7.0",
+    "pre-commit>=3.3.0",
 ]
 
 [project.urls]

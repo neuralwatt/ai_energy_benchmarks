@@ -27,8 +27,9 @@ AI Energy Benchmarks provides a flexible framework for measuring the energy foot
 
 1. **Create and activate a Python environment**:
 ```bash
-conda create -n ai_energy_benchmark python=3.12
-conda activate ai_energy_benchmark
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
 ```
 
 2. **Install the package**:
