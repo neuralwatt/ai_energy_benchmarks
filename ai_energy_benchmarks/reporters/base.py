@@ -1,7 +1,7 @@
 """Base interface for results reporters."""
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any
+from typing import Any, Dict
 
 
 class Reporter(ABC):

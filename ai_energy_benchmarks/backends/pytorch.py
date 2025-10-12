@@ -1,7 +1,9 @@
 """PyTorch backend implementation for local model inference."""
 
+import importlib.util
 import time
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
 from ai_energy_benchmarks.backends.base import Backend
 
 
@@ -68,13 +70,12 @@ class PyTorchBackend(Backend):
                         print(f"GPU {device_id} not available (found {gpu_count} GPUs)")
                         return False
 
-            # Check transformers
-            try:
-                import transformers
-                return True
-            except ImportError:
+            # Check transformers availability without importing the package fully
+            if importlib.util.find_spec("transformers") is None:
                 print("transformers library not available")
                 return False
+
+            return True
 
         except ImportError:
             print("PyTorch not available")
@@ -182,7 +183,7 @@ class PyTorchBackend(Backend):
             try:
                 self._initialize_model()
                 return True
-            except:
+            except Exception:
                 return False
         return self.model is not None
 
@@ -237,7 +238,6 @@ class PyTorchBackend(Backend):
             import torch
 
             # Apply Harmony formatting if enabled for gpt-oss models
-            original_prompt = prompt
             if self.use_harmony:
                 reasoning_effort = "high"  # Default
                 if reasoning_params and 'reasoning_effort' in reasoning_params:
@@ -336,7 +336,7 @@ class PyTorchBackend(Backend):
                         # Note: We don't print this message when using prompt-based reasoning
                         # because the reasoning is in the prompt, not the parameters
                         if not (reasoning_params and reasoning_params.get('use_prompt_based_reasoning')):
-                            print(f"  Note: Model doesn't support reasoning parameters, running without them")
+                            print("  Note: Model doesn't support reasoning parameters, running without them")
 
                         # Remove known reasoning-related parameters
                         reasoning_keys = ['reasoning_effort', 'thinking_budget', 'cot_depth', 'use_prompt_based_reasoning']

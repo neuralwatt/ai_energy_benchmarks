@@ -1,9 +1,9 @@
 """GPU monitoring utilities."""
 
-import time
 import subprocess
-from typing import Dict, Any, List, Optional
+import time
 from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -62,7 +62,7 @@ class GPUMonitor:
                         power_draw_w=float(parts[5]) if len(parts) > 5 and parts[5].strip() else None,
                         timestamp=time.time()
                     )
-        except (subprocess.TimeoutExpired, subprocess.CalledProcessError, ValueError, FileNotFoundError) as e:
+        except (subprocess.TimeoutExpired, subprocess.CalledProcessError, ValueError, FileNotFoundError):
             pass
 
         # Try PyTorch CUDA if nvidia-smi fails
@@ -70,7 +70,6 @@ class GPUMonitor:
             import torch
             if torch.cuda.is_available() and gpu_id < torch.cuda.device_count():
                 props = torch.cuda.get_device_properties(gpu_id)
-                memory_allocated = torch.cuda.memory_allocated(gpu_id) / (1024 ** 2)  # MB
                 memory_reserved = torch.cuda.memory_reserved(gpu_id) / (1024 ** 2)  # MB
                 memory_total = props.total_memory / (1024 ** 2)  # MB
 

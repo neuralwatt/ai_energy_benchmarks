@@ -3,7 +3,8 @@
 import csv
 import os
 from datetime import datetime, timezone
-from typing import Dict, Any
+from typing import Any, Dict
+
 from ai_energy_benchmarks.reporters.base import Reporter
 
 

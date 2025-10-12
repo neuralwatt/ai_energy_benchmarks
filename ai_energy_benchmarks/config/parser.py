@@ -1,9 +1,10 @@
 """Configuration parser for Hydra-based configs."""
 
 import os
-from typing import Dict, Any, Optional
 from dataclasses import dataclass, field
-from omegaconf import OmegaConf, DictConfig
+from typing import Any, Dict, Optional
+
+from omegaconf import DictConfig, OmegaConf
 
 
 @dataclass

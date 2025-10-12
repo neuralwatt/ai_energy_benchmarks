@@ -1,6 +1,7 @@
 """HuggingFace datasets loader for benchmark prompts."""
 
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List
+
 from ai_energy_benchmarks.datasets.base import Dataset
 
 
@@ -64,15 +65,15 @@ class HuggingFaceDataset(Dataset):
 
             return prompts
 
-        except ImportError:
+        except ImportError as err:
             raise ImportError(
                 "HuggingFace datasets library not installed. "
                 "Install with: pip install datasets"
-            )
+            ) from err
         except ValueError:
             raise
-        except Exception as e:
-            raise RuntimeError(f"Error loading dataset: {e}")
+        except Exception as err:
+            raise RuntimeError(f"Error loading dataset: {err}") from err
 
     def validate(self) -> bool:
         """Validate dataset availability.
@@ -81,7 +82,8 @@ class HuggingFaceDataset(Dataset):
             bool: True if dataset is available
         """
         try:
-            from datasets import load_dataset
-            return True
-        except ImportError:
+            import importlib.util
+
+            return importlib.util.find_spec("datasets") is not None
+        except Exception:
             return False

@@ -1,8 +1,10 @@
 """vLLM backend implementation for high-performance inference."""
 
-import requests
 import time
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
+import requests
+
 from ai_energy_benchmarks.backends.base import Backend
 
 

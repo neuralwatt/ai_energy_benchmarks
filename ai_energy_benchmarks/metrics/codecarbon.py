@@ -1,7 +1,8 @@
 """CodeCarbon metrics collector for comprehensive energy measurement."""
 
 import os
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
 from ai_energy_benchmarks.metrics.base import MetricsCollector
 
 
@@ -71,7 +72,7 @@ class CodeCarbonCollector(MetricsCollector):
 
             self.tracker.start()
             self._tracker_started = True
-            print(f"CodeCarbon tracker started (version 3.0+, machine mode)")
+            print("CodeCarbon tracker started (version 3.0+, machine mode)")
 
         except ImportError:
             print("Warning: codecarbon not installed. Energy metrics will not be collected.")
@@ -197,8 +198,9 @@ class CodeCarbonCollector(MetricsCollector):
         """
         try:
             import codecarbon
+
             version = codecarbon.__version__
-        except:
+        except Exception:
             version = "unknown"
 
         return {

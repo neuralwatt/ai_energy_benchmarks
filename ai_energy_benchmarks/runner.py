@@ -1,10 +1,11 @@
 """Main benchmark runner for POC."""
 
 import time
-from typing import Dict, Any, List
-from ai_energy_benchmarks.config.parser import BenchmarkConfig, ConfigParser
-from ai_energy_benchmarks.backends.vllm import VLLMBackend
+from typing import Any, Dict, List
+
 from ai_energy_benchmarks.backends.pytorch import PyTorchBackend
+from ai_energy_benchmarks.backends.vllm import VLLMBackend
+from ai_energy_benchmarks.config.parser import BenchmarkConfig, ConfigParser
 from ai_energy_benchmarks.datasets.huggingface import HuggingFaceDataset
 from ai_energy_benchmarks.metrics.codecarbon import CodeCarbonCollector
 from ai_energy_benchmarks.reporters.csv_reporter import CSVReporter
@@ -199,7 +200,7 @@ class BenchmarkRunner:
         print("Reporting results...")
         self.reporter.report(results)
 
-        print(f"\n=== Benchmark Complete ===")
+        print("\n=== Benchmark Complete ===")
         print(f"Total prompts: {len(prompts)}")
         print(f"Successful: {results['summary']['successful_prompts']}")
         print(f"Failed: {results['summary']['failed_prompts']}")
