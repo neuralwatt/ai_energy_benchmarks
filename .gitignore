@@ -11,3 +11,4 @@ ai_energy_benchmarks/__pycache__/
 ai_energy_benchmarks/*/__pycache__/
 .coverage
 ai_energy_benchmarks.egg-info/
+dist/*

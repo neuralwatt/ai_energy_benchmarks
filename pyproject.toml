@@ -72,11 +72,14 @@ Documentation = "https://github.com/neuralwatt/ai_energy_benchmarks/tree/main/do
 Repository = "https://github.com/neuralwatt/ai_energy_benchmarks"
 Issues = "https://github.com/neuralwatt/ai_energy_benchmarks/issues"
 
-[project.scripts]
-ai-energy-benchmark = "ai_energy_benchmarks.cli:main"
+# [project.scripts]
+# ai-energy-benchmark = "ai_energy_benchmarks.cli:main"
+# Note: CLI not implemented in POC phase - use programmatic API
 
 [tool.setuptools]
-packages = ["ai_energy_benchmarks"]
+packages = ["ai_energy_benchmarks", "ai_energy_benchmarks.backends", "ai_energy_benchmarks.config",
+            "ai_energy_benchmarks.datasets", "ai_energy_benchmarks.metrics",
+            "ai_energy_benchmarks.reporters", "ai_energy_benchmarks.utils"]
 
 [tool.setuptools.package-data]
 ai_energy_benchmarks = ["py.typed"]

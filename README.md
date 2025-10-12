@@ -44,6 +44,30 @@ pip install -e ".[pytorch]"
 pip install -e ".[all]"
 ```
 
+### Building for Distribution
+
+To create a wheel for use in other projects (e.g., AIEnergyScore):
+
+```bash
+# Build wheel
+./build_wheel.sh
+
+# Install from wheel
+pip install dist/ai_energy_benchmarks-*.whl
+
+# Install with optional dependencies
+pip install 'dist/ai_energy_benchmarks-*.whl[pytorch]'
+pip install 'dist/ai_energy_benchmarks-*.whl[all]'
+```
+
+The wheel can be copied into Docker images or shared with other projects without requiring the full source tree.
+
+**Benefits of wheel distribution:**
+- Smaller Docker build context (only wheel, not full source)
+- Faster Docker builds (no copying unnecessary files)
+- Cleaner separation between development and deployment
+- Foundation for future PyPI distribution
+
 ### Running a Benchmark
 
 #### Using the Shell Script
