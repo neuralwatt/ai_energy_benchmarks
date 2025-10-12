@@ -7,31 +7,21 @@ from ai_energy_benchmarks.datasets.huggingface import HuggingFaceDataset
 # Load model
 print("Loading model...")
 backend = PyTorchBackend(
-    model="openai/gpt-oss-20b",
-    device="cuda",
-    device_ids=[0],
-    torch_dtype="auto",
-    device_map="auto"
+    model="openai/gpt-oss-20b", device="cuda", device_ids=[0], torch_dtype="auto", device_map="auto"
 )
 
 # Load a sample prompt
 print("\nLoading dataset...")
 dataset = HuggingFaceDataset()
-prompts = dataset.load({
-    'name': 'EnergyStarAI/text_generation',
-    'text_column': 'text',
-    'num_samples': 1
-})
+prompts = dataset.load(
+    {"name": "EnergyStarAI/text_generation", "text_column": "text", "num_samples": 1}
+)
 
 print(f"\nSample prompt: {prompts[0][:100]}...")
 
 # Try inference
 print("\nRunning inference...")
-result = backend.run_inference(
-    prompts[0],
-    max_tokens=10,
-    temperature=0.7
-)
+result = backend.run_inference(prompts[0], max_tokens=10, temperature=0.7)
 
 print("\n=== Result ===")
 print(f"Success: {result.get('success')}")

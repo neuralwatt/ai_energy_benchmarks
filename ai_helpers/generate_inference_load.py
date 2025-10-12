@@ -43,28 +43,62 @@ from datetime import datetime
 import pandas as pd
 
 # Parse command-line arguments
-parser = argparse.ArgumentParser(description='Generate inference load on an AI model')
-parser.add_argument('--gpu-model', default='h100', help='The model of the GPU being used')
-parser.add_argument('--ai-model', default='llama3.2', help='The AI model to be used for inference')
-parser.add_argument('--test-time', type=int, default=240, help='Duration of each test in seconds')
-parser.add_argument('--limiting-mode', default='none', choices=['none', 'frequency', 'power'], 
-                    help='Mode to limit GPU resources (none, frequency, power)')
-parser.add_argument('--print-responses', action='store_true', help='Print LLM responses to the console')
-parser.add_argument('--debug', action='store_true', help='Enable debug mode with shorter test times and limited variations')
-parser.add_argument('--output-dir', default='benchmark_output', help='Directory where output files will be stored')
-parser.add_argument('--in-docker', action='store_true', help='Indicate running in Docker container')
-parser.add_argument('--no-fixed-output', action='store_true', help='Disable fixed temperature and seed settings')
-parser.add_argument('--demo-mode', default=None, help='Number of prompts to run or path to custom prompt file')
-parser.add_argument('--log-file', help='File to log prompts and responses')
-parser.add_argument('--warmup', action='store_true', help='Run all prompts once through the model before benchmarking. Required if we want ollama to generate same tokens in subsequent runs.')
-parser.add_argument('--random-prompts', action='store_true', help='Enable random prompt selection')
-parser.add_argument('--random-count', action='store_true', help='Randomize the number of prompts to run')
-parser.add_argument('--random-intervals', action='store_true', help='Randomize the intervals between prompts')
-parser.add_argument('--min-prompts', type=int, default=5, help='Minimum number of prompts when using random-count')
-parser.add_argument('--max-prompts', type=int, default=20, help='Maximum number of prompts when using random-count')
-parser.add_argument('--min-interval', type=float, default=0.5, help='Minimum interval between prompts in seconds')
-parser.add_argument('--max-interval', type=float, default=3.0, help='Maximum interval between prompts in seconds')
-parser.add_argument('--dynamo', action='store_true', help='Indicate running against a dynamo server')
+parser = argparse.ArgumentParser(description="Generate inference load on an AI model")
+parser.add_argument("--gpu-model", default="h100", help="The model of the GPU being used")
+parser.add_argument("--ai-model", default="llama3.2", help="The AI model to be used for inference")
+parser.add_argument("--test-time", type=int, default=240, help="Duration of each test in seconds")
+parser.add_argument(
+    "--limiting-mode",
+    default="none",
+    choices=["none", "frequency", "power"],
+    help="Mode to limit GPU resources (none, frequency, power)",
+)
+parser.add_argument(
+    "--print-responses", action="store_true", help="Print LLM responses to the console"
+)
+parser.add_argument(
+    "--debug",
+    action="store_true",
+    help="Enable debug mode with shorter test times and limited variations",
+)
+parser.add_argument(
+    "--output-dir", default="benchmark_output", help="Directory where output files will be stored"
+)
+parser.add_argument("--in-docker", action="store_true", help="Indicate running in Docker container")
+parser.add_argument(
+    "--no-fixed-output", action="store_true", help="Disable fixed temperature and seed settings"
+)
+parser.add_argument(
+    "--demo-mode", default=None, help="Number of prompts to run or path to custom prompt file"
+)
+parser.add_argument("--log-file", help="File to log prompts and responses")
+parser.add_argument(
+    "--warmup",
+    action="store_true",
+    help="Run all prompts once through the model before benchmarking. Required if we want ollama to generate same tokens in subsequent runs.",
+)
+parser.add_argument("--random-prompts", action="store_true", help="Enable random prompt selection")
+parser.add_argument(
+    "--random-count", action="store_true", help="Randomize the number of prompts to run"
+)
+parser.add_argument(
+    "--random-intervals", action="store_true", help="Randomize the intervals between prompts"
+)
+parser.add_argument(
+    "--min-prompts", type=int, default=5, help="Minimum number of prompts when using random-count"
+)
+parser.add_argument(
+    "--max-prompts", type=int, default=20, help="Maximum number of prompts when using random-count"
+)
+parser.add_argument(
+    "--min-interval", type=float, default=0.5, help="Minimum interval between prompts in seconds"
+)
+parser.add_argument(
+    "--max-interval", type=float, default=3.0, help="Maximum interval between prompts in seconds"
+)
+parser.add_argument(
+    "--dynamo", action="store_true", help="Indicate running against a dynamo server"
+)
 
 args = parser.parse_args()
 log_file = args.log_file
@@ -106,7 +140,7 @@ print(f"Output directory exists: {os.path.exists(output_dir)}")
 print(f"Output directory is writable: {os.access(output_dir, os.W_OK)}")
 
 # Read prompts from file - modified to handle demo mode
-prompts_file = 'prompts.csv'
+prompts_file = "prompts.csv"
 
 print(f"**Demo mode: {demo_mode}")
 # Handle demo-mode parameter
@@ -117,30 +151,30 @@ if demo_mode:
         print(f"Using custom prompt file: {prompts_file}")
     elif demo_mode.isdigit():
         # If demo_mode is a number, limit the number of prompts used
-        with open(prompts_file, 'r') as file:
+        with open(prompts_file, "r") as file:
             all_prompts = file.read().strip().split('",\n"')
             all_prompts = [prompt.strip('"') for prompt in all_prompts]
-        
+
         num_prompts = min(int(demo_mode), len(all_prompts))
         prompts = all_prompts[:num_prompts]
         print(f"Running in demo mode with {num_prompts} prompts")
-    elif demo_mode.lower() in ['true', 'yes']:
+    elif demo_mode.lower() in ["true", "yes"]:
         # If demo_mode is true or yes, use a default limited number of prompts (3)
         DEFAULT_DEMO_PROMPTS = 3
-        with open(prompts_file, 'r') as file:
+        with open(prompts_file, "r") as file:
             all_prompts = file.read().strip().split('",\n"')
             all_prompts = [prompt.strip('"') for prompt in all_prompts]
-        
+
         prompts = all_prompts[:DEFAULT_DEMO_PROMPTS]
         print(f"Running in demo mode with {DEFAULT_DEMO_PROMPTS} prompts")
     else:
         print(f"Invalid demo-mode value: {demo_mode}. Using default prompt file.")
-        with open(prompts_file, 'r') as file:
+        with open(prompts_file, "r") as file:
             prompts = file.read().strip().split('",\n"')
             prompts = [prompt.strip('"') for prompt in prompts]
 else:
     # Default behavior - read all prompts from the default file
-    with open(prompts_file, 'r') as file:
+    with open(prompts_file, "r") as file:
         prompts = file.read().strip().split('",\n"')
         prompts = [prompt.strip('"') for prompt in prompts]
 
@@ -155,28 +189,55 @@ if random_count:
     prompts = prompts[:num_prompts]
     print(f"Randomly selected {num_prompts} prompts")
 
-#create a file_model_id by parsing out the / if it exists
+# create a file_model_id by parsing out the / if it exists
 file_ai_model = ai_model
-if '/' in ai_model:
-    file_ai_model = ai_model.split('/')[-1]
+if "/" in ai_model:
+    file_ai_model = ai_model.split("/")[-1]
     print(f"AI model parsed to: {file_ai_model}")
 
 file_id = f"{limiting_mode}_{gpu_model}_{file_ai_model}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 # Setup
 if limiting_mode == "power":
-    min_power_limit = int(subprocess.check_output("nvidia-smi -q -d POWER | grep 'Min Power Limit' | awk '{print $5}'", shell=True).strip()) / 100
-    max_power_limit = int(subprocess.check_output("nvidia-smi -q -d POWER | grep 'Max Power Limit' | awk '{print $5}'", shell=True).strip()) / 100
+    min_power_limit = (
+        int(
+            subprocess.check_output(
+                "nvidia-smi -q -d POWER | grep 'Min Power Limit' | awk '{print $5}'", shell=True
+            ).strip()
+        )
+        / 100
+    )
+    max_power_limit = (
+        int(
+            subprocess.check_output(
+                "nvidia-smi -q -d POWER | grep 'Max Power Limit' | awk '{print $5}'", shell=True
+            ).strip()
+        )
+        / 100
+    )
 
-    power_limits = list(range(min_power_limit, max_power_limit, int((max_power_limit - min_power_limit) * 0.1)))
+    power_limits = list(
+        range(min_power_limit, max_power_limit, int((max_power_limit - min_power_limit) * 0.1))
+    )
     power_limits[-1] = max_power_limit
 
     print(f"Power limits: {power_limits}")
 
 elif limiting_mode == "frequency":
-    gpu_frequencies_output = subprocess.check_output("nvidia-smi --query-supported-clocks=graphics,memory --format=csv", shell=True).decode()
-    valid_gpu_frequencies = sorted(set(int(line.split(",")[0].strip().replace(' MHz', '')) for line in gpu_frequencies_output.splitlines() if " MHz" in line))
+    gpu_frequencies_output = subprocess.check_output(
+        "nvidia-smi --query-supported-clocks=graphics,memory --format=csv", shell=True
+    ).decode()
+    valid_gpu_frequencies = sorted(
+        set(
+            int(line.split(",")[0].strip().replace(" MHz", ""))
+            for line in gpu_frequencies_output.splitlines()
+            if " MHz" in line
+        )
+    )
 
-    gpu_frequencies = [valid_gpu_frequencies[i] for i in range(0, len(valid_gpu_frequencies), int(len(valid_gpu_frequencies) * 0.1))]
+    gpu_frequencies = [
+        valid_gpu_frequencies[i]
+        for i in range(0, len(valid_gpu_frequencies), int(len(valid_gpu_frequencies) * 0.1))
+    ]
     gpu_frequencies[-1] = valid_gpu_frequencies[-1]
 
     print(f"GPU Frequencies: {gpu_frequencies}")
@@ -198,46 +259,55 @@ if debug:
 variation_count = 0
 test_count = 0
 
+
 # Function to log prompts and responses
 def log_interaction(prompt, response, log_file):
     if log_file:
-        with open(log_file, 'a', encoding='utf-8') as f:
+        with open(log_file, "a", encoding="utf-8") as f:
             f.write(f"PROMPT: {prompt}\n")
             f.write(f"RESPONSE: {response}\n")
             f.write("-" * 80 + "\n")
+
 
 # Function to perform warmup by running all prompts once through the model
 def perform_warmup(prompts, ai_model, endpoint):
     print("Starting warmup phase - running all prompts once to prime the model...")
     for i, prompt in enumerate(prompts):
-        print(f"Warmup: Processing prompt {i+1} of {len(prompts)}")
+        print(f"Warmup: Processing prompt {i + 1} of {len(prompts)}")
         body = {
             "model": ai_model,
             "prompt": prompt,
-            "options": {
-                "num_ctx": 2048,
-                "temperature": 0,
-                "seed": 42
-            }
+            "options": {"num_ctx": 2048, "temperature": 0, "seed": 42},
         }
-        
+
         try:
             response = subprocess.check_output(
-                ["curl", "-s", "-X", "POST", endpoint, "-H", "Content-Type: application/json", "-d", json.dumps(body)],
-                stderr=subprocess.DEVNULL
+                [
+                    "curl",
+                    "-s",
+                    "-X",
+                    "POST",
+                    endpoint,
+                    "-H",
+                    "Content-Type: application/json",
+                    "-d",
+                    json.dumps(body),
+                ],
+                stderr=subprocess.DEVNULL,
             )
             # Process but don't log or display the responses
             _ = [json.loads(line) for line in response.decode().split("\n") if line]
         except Exception as e:
             print(f"Error during warmup: {e}")
-    
+
     print("Warmup phase completed. Starting benchmark...")
+
 
 # Set the endpoint based on the environment
 if in_docker:
     print("Running in Docker")
     endpoint = "http://ollama:11434/api/generate"
-#dynamo overrides docker mode if both are true
+# dynamo overrides docker mode if both are true
 if dynamo:
     print("Running against a dynamo server")
     endpoint = "http://dynamo:8000/v1/chat/completions"
@@ -279,32 +349,22 @@ while True:
     time.sleep(1)
 
     for i, prompt in enumerate(prompts):
-        body = {
-            "model": ai_model,
-            "prompt": prompt,
-            "options": {
-                "num_ctx": 2048
-            }
-        }
+        body = {"model": ai_model, "prompt": prompt, "options": {"num_ctx": 2048}}
         if dynamo:
             body = {
                 "model": ai_model,
                 "messages": [{"role": "user", "content": prompt}],
-                "stream":False,
-                "options": {
-                    "num_ctx": 2048
-                },
-                "stream_options": {
-                    "include_usage":True
-                }
+                "stream": False,
+                "options": {"num_ctx": 2048},
+                "stream_options": {"include_usage": True},
             }
-        
+
         # Add temperature and seed for reproducible output unless no-fixed-output is specified
         body["options"]["temperature"] = 0
         body["options"]["seed"] = 42
-            
+
         print(f"{i} of {len(prompts)} Prompt: {prompt}")
-        print(f"    body: {body}")  
+        print(f"    body: {body}")
 
         # If random intervals is enabled, wait for a random amount of time
         if random_intervals and i > 0:
@@ -313,7 +373,19 @@ while True:
             time.sleep(wait_time)
 
         query_start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-        response = subprocess.check_output(["curl", "-s", "-X", "POST", endpoint, "-H", "Content-Type: application/json", "-d", json.dumps(body)])
+        response = subprocess.check_output(
+            [
+                "curl",
+                "-s",
+                "-X",
+                "POST",
+                endpoint,
+                "-H",
+                "Content-Type: application/json",
+                "-d",
+                json.dumps(body),
+            ]
+        )
         query_end_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
 
         print(f"response: {response}")
@@ -325,14 +397,15 @@ while True:
                 if print_responses:
                     print(res["response"], end="")
                 full_response += res["response"]
-            
+
             if log_file:
                 log_interaction(prompt, full_response, log_file)
 
         try:
             if dynamo:
                 final_response = next(
-                    res for res in response_array
+                    res
+                    for res in response_array
                     if any(choice.get("finish_reason") for choice in res.get("choices", []))
                 )
             else:
@@ -345,7 +418,9 @@ while True:
         if dynamo:
             usage = final_response.get("usage", {})
             total_tokens = usage.get("total_tokens", 0)
-            total_duration_seconds = (pd.to_datetime(query_end_time) - pd.to_datetime(query_start_time)).total_seconds()
+            total_duration_seconds = (
+                pd.to_datetime(query_end_time) - pd.to_datetime(query_start_time)
+            ).total_seconds()
             prompt_tokens = usage.get("prompt_tokens", 0)
             prompt_eval_duration_seconds = -1  # default and to prevent division by zero
             response_tokens = usage.get("completion_tokens", 0)
@@ -387,7 +462,7 @@ while True:
             }
             inference_log_path = os.path.join(output_dir, f"inference.load.{file_id}.csv")
             try:
-                with open(inference_log_path, "a", newline='') as csvfile:
+                with open(inference_log_path, "a", newline="") as csvfile:
                     writer = csv.DictWriter(csvfile, fieldnames=csv_output.keys())
                     if test_count == 0:
                         writer.writeheader()

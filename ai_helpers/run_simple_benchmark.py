@@ -8,17 +8,17 @@ import sys
 import os
 import time
 
-sys.path.insert(0, '.')
+sys.path.insert(0, ".")
 
 from ai_energy_benchmarks.backends.vllm import VLLMBackend
 from ai_energy_benchmarks.reporters.csv_reporter import CSVReporter
 
 
 def run_simple_benchmark(
-    model='openai/gpt-oss-120b',
-    endpoint='http://localhost:8000/v1',
+    model="openai/gpt-oss-120b",
+    endpoint="http://localhost:8000/v1",
     num_samples=10,
-    output_file='./results/benchmark_results.csv'
+    output_file="./results/benchmark_results.csv",
 ):
     """Run a simple benchmark without HuggingFace datasets or CodeCarbon.
 
@@ -58,7 +58,7 @@ def run_simple_benchmark(
         "What is democracy?",
         "Explain evolution.",
         "What is renewable energy?",
-        "How does the brain work?"
+        "How does the brain work?",
     ]
 
     # Select requested number of prompts
@@ -102,15 +102,11 @@ def run_simple_benchmark(
     results = []
 
     for i, prompt in enumerate(prompts):
-        print(f"  Prompt {i+1}/{len(prompts)}: {prompt[:50]:50s}", end="", flush=True)
+        print(f"  Prompt {i + 1}/{len(prompts)}: {prompt[:50]:50s}", end="", flush=True)
 
-        result = backend.run_inference(
-            prompt,
-            max_tokens=100,
-            temperature=0.7
-        )
+        result = backend.run_inference(prompt, max_tokens=100, temperature=0.7)
 
-        if result['success']:
+        if result["success"]:
             results.append(result)
             print(f" ✓ {result['total_tokens']:3d} tok, {result['latency_seconds']:.3f}s")
         else:
@@ -119,31 +115,33 @@ def run_simple_benchmark(
     end_time = time.time()
 
     # Calculate statistics
-    successful = [r for r in results if r.get('success', False)]
+    successful = [r for r in results if r.get("success", False)]
     failed = len(prompts) - len(successful)
 
-    total_tokens = sum(r.get('total_tokens', 0) for r in successful)
-    total_prompt_tokens = sum(r.get('prompt_tokens', 0) for r in successful)
-    total_completion_tokens = sum(r.get('completion_tokens', 0) for r in successful)
-    avg_latency = sum(r.get('latency_seconds', 0) for r in successful) / len(successful) if successful else 0
+    total_tokens = sum(r.get("total_tokens", 0) for r in successful)
+    total_prompt_tokens = sum(r.get("prompt_tokens", 0) for r in successful)
+    total_completion_tokens = sum(r.get("completion_tokens", 0) for r in successful)
+    avg_latency = (
+        sum(r.get("latency_seconds", 0) for r in successful) / len(successful) if successful else 0
+    )
     total_duration = end_time - start_time
     throughput = total_tokens / total_duration if total_duration > 0 else 0
 
     # Create summary
     summary = {
-        'benchmark_name': 'simple_benchmark',
-        'backend': 'vllm',
-        'model': model,
-        'endpoint': endpoint,
-        'total_prompts': len(prompts),
-        'successful_prompts': len(successful),
-        'failed_prompts': failed,
-        'total_duration_seconds': total_duration,
-        'avg_latency_seconds': avg_latency,
-        'total_tokens': total_tokens,
-        'total_prompt_tokens': total_prompt_tokens,
-        'total_completion_tokens': total_completion_tokens,
-        'throughput_tokens_per_second': throughput
+        "benchmark_name": "simple_benchmark",
+        "backend": "vllm",
+        "model": model,
+        "endpoint": endpoint,
+        "total_prompts": len(prompts),
+        "successful_prompts": len(successful),
+        "failed_prompts": failed,
+        "total_duration_seconds": total_duration,
+        "avg_latency_seconds": avg_latency,
+        "total_tokens": total_tokens,
+        "total_prompt_tokens": total_prompt_tokens,
+        "total_completion_tokens": total_completion_tokens,
+        "throughput_tokens_per_second": throughput,
     }
 
     # Save results
@@ -173,20 +171,26 @@ def run_simple_benchmark(
     return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description='Run simple benchmark without optional dependencies')
-    parser.add_argument('--model', default='openai/gpt-oss-120b', help='Model name')
-    parser.add_argument('--endpoint', default='http://localhost:8000/v1', help='vLLM endpoint URL')
-    parser.add_argument('--num-samples', type=int, default=10, help='Number of prompts to run')
-    parser.add_argument('--output', default='./results/simple_benchmark_results.csv', help='Output CSV file')
+    parser = argparse.ArgumentParser(
+        description="Run simple benchmark without optional dependencies"
+    )
+    parser.add_argument("--model", default="openai/gpt-oss-120b", help="Model name")
+    parser.add_argument("--endpoint", default="http://localhost:8000/v1", help="vLLM endpoint URL")
+    parser.add_argument("--num-samples", type=int, default=10, help="Number of prompts to run")
+    parser.add_argument(
+        "--output", default="./results/simple_benchmark_results.csv", help="Output CSV file"
+    )
 
     args = parser.parse_args()
 
-    sys.exit(run_simple_benchmark(
-        model=args.model,
-        endpoint=args.endpoint,
-        num_samples=args.num_samples,
-        output_file=args.output
-    ))
+    sys.exit(
+        run_simple_benchmark(
+            model=args.model,
+            endpoint=args.endpoint,
+            num_samples=args.num_samples,
+            output_file=args.output,
+        )
+    )

@@ -51,6 +51,7 @@ def main():
 
     try:
         import ai_energy_benchmarks
+
         print(f"✓ ai_energy_benchmarks - version {ai_energy_benchmarks.__version__}")
     except ImportError:
         print("✗ ai_energy_benchmarks - NOT INSTALLED")
@@ -63,6 +64,7 @@ def main():
     if check_import("ai_energy_benchmarks.backends.vllm"):
         try:
             from ai_energy_benchmarks.backends.vllm import VLLMBackend
+
             print("  ✓ VLLMBackend class available")
         except ImportError:
             print("  ✗ VLLMBackend class not available")
@@ -71,6 +73,7 @@ def main():
     if check_import("ai_energy_benchmarks.config.parser"):
         try:
             from ai_energy_benchmarks.config.parser import ConfigParser
+
             print("  ✓ ConfigParser class available")
         except ImportError:
             print("  ✗ ConfigParser class not available")
@@ -79,6 +82,7 @@ def main():
     if check_import("ai_energy_benchmarks.runner"):
         try:
             from ai_energy_benchmarks.runner import BenchmarkRunner
+
             print("  ✓ BenchmarkRunner class available")
         except ImportError:
             print("  ✗ BenchmarkRunner class not available")

@@ -27,15 +27,15 @@ reporter:
   type: csv
   output_file: ./results/test.csv
 """
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write(config_content)
             config_path = f.name
 
         try:
             config = ConfigParser.load_config(config_path)
-            assert config.name == 'test_benchmark'
-            assert config.backend.type == 'vllm'
-            assert config.backend.model == 'test-model'
+            assert config.name == "test_benchmark"
+            assert config.backend.type == "vllm"
+            assert config.backend.model == "test-model"
             assert config.scenario.num_samples == 5
         finally:
             os.unlink(config_path)
@@ -43,7 +43,7 @@ reporter:
     def test_load_config_missing_file(self):
         """Test loading non-existent config file."""
         with pytest.raises(FileNotFoundError):
-            ConfigParser.load_config('nonexistent.yaml')
+            ConfigParser.load_config("nonexistent.yaml")
 
     def test_load_config_with_overrides(self):
         """Test loading config with overrides."""
@@ -55,17 +55,14 @@ backend:
 scenario:
   num_samples: 5
 """
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write(config_content)
             config_path = f.name
 
         try:
-            overrides = {
-                'scenario': {'num_samples': 10},
-                'name': 'overridden'
-            }
+            overrides = {"scenario": {"num_samples": 10}, "name": "overridden"}
             config = ConfigParser.load_config_with_overrides(config_path, overrides)
-            assert config.name == 'overridden'
+            assert config.name == "overridden"
             assert config.scenario.num_samples == 10
         finally:
             os.unlink(config_path)
@@ -78,7 +75,7 @@ scenario:
     def test_validate_config_invalid_backend(self):
         """Test validation with invalid backend."""
         config = BenchmarkConfig()
-        config.backend.type = 'invalid'
+        config.backend.type = "invalid"
 
         with pytest.raises(ValueError, match="Invalid backend type"):
             ConfigParser.validate_config(config)
@@ -86,7 +83,7 @@ scenario:
     def test_validate_config_vllm_no_endpoint(self):
         """Test validation of vLLM backend without endpoint."""
         config = BenchmarkConfig()
-        config.backend.type = 'vllm'
+        config.backend.type = "vllm"
         config.backend.endpoint = None
 
         with pytest.raises(ValueError, match="vLLM backend requires endpoint"):

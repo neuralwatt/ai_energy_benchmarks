@@ -39,7 +39,9 @@ class PyTorchBackend(Backend):
         self.max_memory = max_memory
 
         # Auto-detect Harmony formatting for gpt-oss models
-        detected_use_harmony = use_harmony if use_harmony is not None else "gpt-oss" in model.lower()
+        detected_use_harmony = (
+            use_harmony if use_harmony is not None else "gpt-oss" in model.lower()
+        )
         self.use_harmony: bool = bool(detected_use_harmony)
 
         self.model: Any = None

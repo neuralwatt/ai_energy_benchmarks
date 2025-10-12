@@ -64,7 +64,7 @@ class HuggingFaceDataset(Dataset):
 
         except ImportError as err:
             raise ImportError(
-                "HuggingFace datasets library not installed. " "Install with: pip install datasets"
+                "HuggingFace datasets library not installed. Install with: pip install datasets"
             ) from err
         except ValueError:
             raise

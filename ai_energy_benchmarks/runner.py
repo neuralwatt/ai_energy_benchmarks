@@ -186,7 +186,7 @@ class BenchmarkRunner:
 
         for i, prompt in enumerate(prompts):
             prompt_start = time.time()
-            print(f"  Processing prompt {i+1}/{len(prompts)}...", flush=True)
+            print(f"  Processing prompt {i + 1}/{len(prompts)}...", flush=True)
 
             result = backend.run_inference(prompt, **gen_kwargs)
             inference_results.append(result)

@@ -20,17 +20,20 @@ from typing import Dict, Any, List
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from ai_energy_benchmarks.config.parser import (
-    BenchmarkConfig, BackendConfig, ScenarioConfig,
-    MetricsConfig, ReporterConfig
+    BenchmarkConfig,
+    BackendConfig,
+    ScenarioConfig,
+    MetricsConfig,
+    ReporterConfig,
 )
 from ai_energy_benchmarks.runner import BenchmarkRunner
 
 
 def run_ai_energy_benchmark_pytorch(reasoning_effort: str, output_dir: Path) -> Dict[str, Any]:
     """Run ai_energy_benchmark with PyTorch backend and specified reasoning effort."""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Running ai_energy_benchmark (PyTorch) with reasoning effort: {reasoning_effort}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     output_path = output_dir / f"pytorch_{reasoning_effort}"
     output_path.mkdir(parents=True, exist_ok=True)
@@ -45,17 +48,17 @@ def run_ai_energy_benchmark_pytorch(reasoning_effort: str, output_dir: Path) -> 
     scenario_cfg = ScenarioConfig(
         dataset_name="EnergyStarAI/text_generation",
         text_column_name="text",
-        #dataset_name="scottcha/reasoning_text_generation",
-        #text_column_name="prompt",
+        # dataset_name="scottcha/reasoning_text_generation",
+        # text_column_name="prompt",
         num_samples=5,  # Small sample for testing
         reasoning=True,
         reasoning_params={
             "reasoning_effort": reasoning_effort,
-            "use_prompt_based_reasoning": True  # Enable prompt-based reasoning for gpt-oss-20b
+            "use_prompt_based_reasoning": True,  # Enable prompt-based reasoning for gpt-oss-20b
         },
         generate_kwargs={
             "max_new_tokens": 2000,  # Allow more tokens for reasoning
-            "min_new_tokens": 50
+            "min_new_tokens": 50,
         },
     )
 
@@ -92,17 +95,19 @@ def run_ai_energy_benchmark_pytorch(reasoning_effort: str, output_dir: Path) -> 
 
     # Save results
     result_file = output_path / "benchmark_report.json"
-    with open(result_file, 'w') as f:
+    with open(result_file, "w") as f:
         json.dump(results, f, indent=2)
 
     return results
 
 
-def run_ai_energy_benchmark_vllm(reasoning_effort: str, output_dir: Path, endpoint: str) -> Dict[str, Any]:
+def run_ai_energy_benchmark_vllm(
+    reasoning_effort: str, output_dir: Path, endpoint: str
+) -> Dict[str, Any]:
     """Run ai_energy_benchmark with vLLM backend and specified reasoning effort."""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Running ai_energy_benchmark (vLLM) with reasoning effort: {reasoning_effort}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     output_path = output_dir / f"vllm_{reasoning_effort}"
     output_path.mkdir(parents=True, exist_ok=True)
@@ -119,10 +124,7 @@ def run_ai_energy_benchmark_vllm(reasoning_effort: str, output_dir: Path, endpoi
         num_samples=10,
         reasoning=True,
         reasoning_params={"reasoning_effort": reasoning_effort},
-        generate_kwargs={
-            "max_new_tokens": 100,
-            "min_new_tokens": 50
-        },
+        generate_kwargs={"max_new_tokens": 100, "min_new_tokens": 50},
     )
 
     metrics_cfg = MetricsConfig(
@@ -158,7 +160,7 @@ def run_ai_energy_benchmark_vllm(reasoning_effort: str, output_dir: Path, endpoi
 
     # Save results
     result_file = output_path / "benchmark_report.json"
-    with open(result_file, 'w') as f:
+    with open(result_file, "w") as f:
         json.dump(results, f, indent=2)
 
     return results
@@ -166,9 +168,9 @@ def run_ai_energy_benchmark_vllm(reasoning_effort: str, output_dir: Path, endpoi
 
 def run_optimum_benchmark(reasoning_effort: str, output_dir: Path) -> Dict[str, Any]:
     """Run optimum-benchmark (AIEnergyScore) with specified reasoning effort."""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Running optimum-benchmark (AIEnergyScore) with reasoning effort: {reasoning_effort}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     output_path = output_dir / f"optimum_{reasoning_effort}"
     output_path.mkdir(parents=True, exist_ok=True)
@@ -178,8 +180,8 @@ def run_optimum_benchmark(reasoning_effort: str, output_dir: Path) -> Dict[str, 
     config_name = f"text_generation_gptoss_reasoning_{reasoning_effort}"
 
     env = os.environ.copy()
-    env['RESULTS_DIR'] = str(output_path)
-    env['BENCHMARK_BACKEND'] = 'pytorch'
+    env["RESULTS_DIR"] = str(output_path)
+    env["BENCHMARK_BACKEND"] = "pytorch"
 
     try:
         result = subprocess.run(
@@ -188,7 +190,7 @@ def run_optimum_benchmark(reasoning_effort: str, output_dir: Path) -> Dict[str, 
             env=env,
             capture_output=True,
             text=True,
-            timeout=600
+            timeout=600,
         )
 
         if result.returncode != 0:
@@ -215,16 +217,18 @@ def run_optimum_benchmark(reasoning_effort: str, output_dir: Path) -> Dict[str, 
 
 def compare_results(all_results: Dict[str, Dict[str, Any]]) -> None:
     """Compare results across different backends and reasoning levels."""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("COMPARISON RESULTS")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     # Define reasoning efforts
     efforts = ["low", "medium", "high"]
     backends = ["pytorch", "vllm", "optimum"]
 
     # Print header
-    print(f"{'Reasoning Effort':<20} | {'Backend':<15} | {'Success':<10} | {'Avg Latency (s)':<18} | {'Energy (Wh)':<15} | {'Tokens/s':<12}")
+    print(
+        f"{'Reasoning Effort':<20} | {'Backend':<15} | {'Success':<10} | {'Avg Latency (s)':<18} | {'Energy (Wh)':<15} | {'Tokens/s':<12}"
+    )
     print("-" * 110)
 
     # Print results for each combination
@@ -234,22 +238,28 @@ def compare_results(all_results: Dict[str, Dict[str, Any]]) -> None:
             if key in all_results:
                 result = all_results[key]
                 if "error" in result:
-                    print(f"{effort:<20} | {backend:<15} | {'FAILED':<10} | {'-':<18} | {'-':<15} | {'-':<12}")
+                    print(
+                        f"{effort:<20} | {backend:<15} | {'FAILED':<10} | {'-':<18} | {'-':<15} | {'-':<12}"
+                    )
                 else:
-                    summary = result.get('summary', {})
-                    energy = result.get('energy', {})
-                    success = summary.get('successful_prompts', 0)
-                    avg_lat = summary.get('avg_latency_seconds', 0)
-                    energy_wh = energy.get('energy_wh', 0)
-                    throughput = summary.get('throughput_tokens_per_second', 0)
-                    print(f"{effort:<20} | {backend:<15} | {success:<10} | {avg_lat:<18.2f} | {energy_wh:<15.2f} | {throughput:<12.2f}")
+                    summary = result.get("summary", {})
+                    energy = result.get("energy", {})
+                    success = summary.get("successful_prompts", 0)
+                    avg_lat = summary.get("avg_latency_seconds", 0)
+                    energy_wh = energy.get("energy_wh", 0)
+                    throughput = summary.get("throughput_tokens_per_second", 0)
+                    print(
+                        f"{effort:<20} | {backend:<15} | {success:<10} | {avg_lat:<18.2f} | {energy_wh:<15.2f} | {throughput:<12.2f}"
+                    )
             else:
-                print(f"{effort:<20} | {backend:<15} | {'SKIPPED':<10} | {'-':<18} | {'-':<15} | {'-':<12}")
+                print(
+                    f"{effort:<20} | {backend:<15} | {'SKIPPED':<10} | {'-':<18} | {'-':<15} | {'-':<12}"
+                )
 
     # Analysis: Check if reasoning effort impacts latency/energy
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("ANALYSIS")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     for backend in backends:
         print(f"\n{backend.upper()} Backend:")
@@ -259,10 +269,10 @@ def compare_results(all_results: Dict[str, Dict[str, Any]]) -> None:
             key = f"{backend}_{effort}"
             if key in all_results and "error" not in all_results[key]:
                 result = all_results[key]
-                summary = result.get('summary', {})
-                energy = result.get('energy', {})
-                latencies.append((effort, summary.get('avg_latency_seconds', 0)))
-                energies.append((effort, energy.get('energy_wh', 0)))
+                summary = result.get("summary", {})
+                energy = result.get("energy", {})
+                latencies.append((effort, summary.get("avg_latency_seconds", 0)))
+                energies.append((effort, energy.get("energy_wh", 0)))
 
         if latencies:
             print("  Latencies:")
@@ -272,7 +282,9 @@ def compare_results(all_results: Dict[str, Dict[str, Any]]) -> None:
             # Check for variation
             lat_values = [l[1] for l in latencies]
             if max(lat_values) - min(lat_values) > 0.5:
-                print(f"  ✓ Latency varies with reasoning effort (range: {min(lat_values):.2f}s - {max(lat_values):.2f}s)")
+                print(
+                    f"  ✓ Latency varies with reasoning effort (range: {min(lat_values):.2f}s - {max(lat_values):.2f}s)"
+                )
             else:
                 print(f"  ⚠ Latency does NOT vary significantly with reasoning effort")
 
@@ -284,17 +296,19 @@ def compare_results(all_results: Dict[str, Dict[str, Any]]) -> None:
             # Check for variation
             eng_values = [e[1] for e in energies]
             if max(eng_values) - min(eng_values) > 1.0:
-                print(f"  ✓ Energy varies with reasoning effort (range: {min(eng_values):.2f}Wh - {max(eng_values):.2f}Wh)")
+                print(
+                    f"  ✓ Energy varies with reasoning effort (range: {min(eng_values):.2f}Wh - {max(eng_values):.2f}Wh)"
+                )
             else:
                 print(f"  ⚠ Energy does NOT vary significantly with reasoning effort")
 
 
 def main():
     """Main test execution."""
-    print("="*60)
+    print("=" * 60)
     print("REASONING LEVELS TEST")
     print("Testing reasoning parameters across benchmark engines")
-    print("="*60)
+    print("=" * 60)
 
     # Setup output directory
     output_dir = Path("./test_results/reasoning_levels")
@@ -340,7 +354,7 @@ def main():
 
     # Save all results
     summary_file = output_dir / "test_summary.json"
-    with open(summary_file, 'w') as f:
+    with open(summary_file, "w") as f:
         json.dump(all_results, f, indent=2)
 
     print(f"\nTest results saved to: {summary_file}")

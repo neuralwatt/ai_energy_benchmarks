@@ -1,7 +1,7 @@
 """CodeCarbon metrics collector for comprehensive energy measurement."""
 
 import os
-from typing import Any, Dict, Optional, Protocol
+from typing import Any, Dict, Optional, Protocol, cast
 
 from ai_energy_benchmarks.metrics.base import MetricsCollector
 
@@ -11,8 +11,7 @@ class _TrackerProtocol(Protocol):
 
     final_emissions_data: Any  # CodeCarbon supplies a rich data object we treat opaquely
 
-    def start(self) -> None:
-        ...
+    def start(self) -> None: ...
 
     def stop(self) -> Optional[float]:  # Tracker returns total emissions in kilograms
         ...
@@ -73,16 +72,20 @@ class CodeCarbonCollector(MetricsCollector):
 
             # CodeCarbon 3.0+ doesn't use country_iso_code/region
             # It uses tracking_mode and co2_signal_api_token instead
-            self.tracker = EmissionsTracker(
-                project_name=self.project_name,
-                output_dir=self.output_dir,
-                log_level=self.log_level,
-                save_to_file=self.save_to_file,
-                gpu_ids=self.gpu_ids,
-                tracking_mode="machine",  # Use machine mode for local tracking
+            tracker = cast(
+                _TrackerProtocol,
+                EmissionsTracker(
+                    project_name=self.project_name,
+                    output_dir=self.output_dir,
+                    log_level=self.log_level,
+                    save_to_file=self.save_to_file,
+                    gpu_ids=self.gpu_ids,
+                    tracking_mode="machine",  # Use machine mode for local tracking
+                ),
             )
 
-            self.tracker.start()
+            self.tracker = tracker
+            tracker.start()
             self._tracker_started = True
             print("CodeCarbon tracker started (version 3.0+, machine mode)")
 

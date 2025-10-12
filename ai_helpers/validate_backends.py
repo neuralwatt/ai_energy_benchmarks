@@ -4,7 +4,7 @@
 import sys
 import time
 
-sys.path.insert(0, '.')
+sys.path.insert(0, ".")
 
 from ai_energy_benchmarks.backends.vllm import VLLMBackend
 from ai_energy_benchmarks.backends.pytorch import PyTorchBackend
@@ -41,10 +41,7 @@ def validate_vllm_backend():
 
     # Initialize backend
     print_section("Step 2: Initialize vLLM Backend")
-    backend = VLLMBackend(
-        endpoint='http://localhost:8000/v1',
-        model='openai/gpt-oss-120b'
-    )
+    backend = VLLMBackend(endpoint="http://localhost:8000/v1", model="openai/gpt-oss-120b")
 
     # Validate
     print("Health check...", end=" ")
@@ -71,23 +68,21 @@ def validate_vllm_backend():
     def run_inference():
         return backend.run_inference(test_prompt, max_tokens=50)
 
-    monitored_result = GPUMonitor.monitor_during_operation(
-        run_inference,
-        gpu_id=0,
-        interval=0.2
-    )
+    monitored_result = GPUMonitor.monitor_during_operation(run_inference, gpu_id=0, interval=0.2)
 
-    if not monitored_result['success']:
+    if not monitored_result["success"]:
         print(f"✗ Inference failed: {monitored_result['error']}")
         return False
 
-    result = monitored_result['result']
-    gpu_stats = monitored_result['gpu_stats']
+    result = monitored_result["result"]
+    gpu_stats = monitored_result["gpu_stats"]
 
     # Display results
     print(f"\n✓ Inference successful")
     print(f"  Response: {result['text'][:100]}...")
-    print(f"  Tokens: {result['total_tokens']} ({result['prompt_tokens']} prompt + {result['completion_tokens']} completion)")
+    print(
+        f"  Tokens: {result['total_tokens']} ({result['prompt_tokens']} prompt + {result['completion_tokens']} completion)"
+    )
     print(f"  Latency: {result['latency_seconds']:.3f}s")
 
     print(f"\nGPU Statistics:")
@@ -96,16 +91,18 @@ def validate_vllm_backend():
     print(f"  Peak utilization: {gpu_stats['max_utilization_percent']:.1f}%")
     print(f"  Average memory: {gpu_stats['avg_memory_mb']:.0f} MB")
     print(f"  Peak memory: {gpu_stats['max_memory_mb']:.0f} MB")
-    if gpu_stats['avg_power_w'] is not None:
+    if gpu_stats["avg_power_w"] is not None:
         print(f"  Average power: {gpu_stats['avg_power_w']:.1f}W")
         print(f"  Peak power: {gpu_stats['max_power_w']:.1f}W")
 
     # Validate GPU was actually used
-    print(f"\n{'✓' if gpu_stats['gpu_active'] else '✗'} GPU Activity Detected: {gpu_stats['gpu_active']}")
-    if not gpu_stats['gpu_active']:
+    print(
+        f"\n{'✓' if gpu_stats['gpu_active'] else '✗'} GPU Activity Detected: {gpu_stats['gpu_active']}"
+    )
+    if not gpu_stats["gpu_active"]:
         print("  Warning: GPU utilization was very low. Inference may not be using GPU.")
 
-    return gpu_stats['gpu_active']
+    return gpu_stats["gpu_active"]
 
 
 def validate_pytorch_backend():
@@ -117,6 +114,7 @@ def validate_pytorch_backend():
     try:
         import torch
         import transformers
+
         print(f"✓ PyTorch version: {torch.__version__}")
         print(f"✓ Transformers version: {transformers.__version__}")
         print(f"✓ CUDA available: {torch.cuda.is_available()}")
@@ -140,11 +138,11 @@ def validate_pytorch_backend():
     print("Loading model... (this may take a minute)")
 
     backend = PyTorchBackend(
-        model='microsoft/phi-2',
-        device='cuda',
+        model="microsoft/phi-2",
+        device="cuda",
         device_ids=[0],
-        torch_dtype='auto',
-        device_map='auto'
+        torch_dtype="auto",
+        device_map="auto",
     )
 
     # Validate environment
@@ -172,22 +170,24 @@ def validate_pytorch_backend():
     monitored_result = GPUMonitor.monitor_during_operation(
         run_inference,
         gpu_id=0,
-        interval=0.1  # More frequent sampling
+        interval=0.1,  # More frequent sampling
     )
 
-    if not monitored_result['success']:
+    if not monitored_result["success"]:
         print(f"✗ Inference failed: {monitored_result['error']}")
         # Cleanup even on failure
         backend.cleanup()
         return False
 
-    result = monitored_result['result']
-    gpu_stats = monitored_result['gpu_stats']
+    result = monitored_result["result"]
+    gpu_stats = monitored_result["gpu_stats"]
 
     # Display results
     print(f"\n✓ Inference successful")
     print(f"  Response: {result['text'][:100]}...")
-    print(f"  Tokens: {result['total_tokens']} ({result['prompt_tokens']} prompt + {result['completion_tokens']} completion)")
+    print(
+        f"  Tokens: {result['total_tokens']} ({result['prompt_tokens']} prompt + {result['completion_tokens']} completion)"
+    )
     print(f"  Latency: {result['latency_seconds']:.3f}s")
 
     print(f"\nGPU Statistics:")
@@ -196,13 +196,15 @@ def validate_pytorch_backend():
     print(f"  Peak utilization: {gpu_stats['max_utilization_percent']:.1f}%")
     print(f"  Average memory: {gpu_stats['avg_memory_mb']:.0f} MB")
     print(f"  Peak memory: {gpu_stats['max_memory_mb']:.0f} MB")
-    if gpu_stats['avg_power_w'] is not None:
+    if gpu_stats["avg_power_w"] is not None:
         print(f"  Average power: {gpu_stats['avg_power_w']:.1f}W")
         print(f"  Peak power: {gpu_stats['max_power_w']:.1f}W")
 
     # Validate GPU was actually used
-    print(f"\n{'✓' if gpu_stats['gpu_active'] else '✗'} GPU Activity Detected: {gpu_stats['gpu_active']}")
-    if not gpu_stats['gpu_active']:
+    print(
+        f"\n{'✓' if gpu_stats['gpu_active'] else '✗'} GPU Activity Detected: {gpu_stats['gpu_active']}"
+    )
+    if not gpu_stats["gpu_active"]:
         print("  Warning: GPU utilization was very low. Inference may not be using GPU.")
 
     # Cleanup
@@ -214,42 +216,43 @@ def validate_pytorch_backend():
     print("\nGPU State After Cleanup:")
     GPUMonitor.print_gpu_info(0)
 
-    return gpu_stats['gpu_active']
+    return gpu_stats["gpu_active"]
 
 
 def main():
     """Run comprehensive validation."""
     print_banner("AI ENERGY BENCHMARKS - BACKEND VALIDATION WITH GPU MONITORING")
 
-    results = {
-        'vllm': None,
-        'pytorch': None
-    }
+    results = {"vllm": None, "pytorch": None}
 
     # Validate vLLM backend
     try:
-        results['vllm'] = validate_vllm_backend()
+        results["vllm"] = validate_vllm_backend()
     except Exception as e:
         print(f"\n✗ vLLM validation failed with exception: {e}")
         import traceback
+
         traceback.print_exc()
-        results['vllm'] = False
+        results["vllm"] = False
 
     # Validate PyTorch backend
     try:
-        results['pytorch'] = validate_pytorch_backend()
+        results["pytorch"] = validate_pytorch_backend()
     except Exception as e:
         print(f"\n✗ PyTorch validation failed with exception: {e}")
         import traceback
+
         traceback.print_exc()
-        results['pytorch'] = False
+        results["pytorch"] = False
 
     # Summary
     print_banner("VALIDATION SUMMARY")
 
     print("Backend Results:")
     print(f"  vLLM:    {'✓ PASS' if results['vllm'] else '✗ FAIL'} (GPU active: {results['vllm']})")
-    print(f"  PyTorch: {'✓ PASS' if results['pytorch'] else '✗ FAIL'} (GPU active: {results['pytorch']})")
+    print(
+        f"  PyTorch: {'✓ PASS' if results['pytorch'] else '✗ FAIL'} (GPU active: {results['pytorch']})"
+    )
 
     # Overall status
     all_passed = all(results.values())

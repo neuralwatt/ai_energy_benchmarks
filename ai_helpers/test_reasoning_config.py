@@ -8,8 +8,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from ai_energy_benchmarks.config.parser import (
-    BenchmarkConfig, BackendConfig, ScenarioConfig,
-    MetricsConfig, ReporterConfig
+    BenchmarkConfig,
+    BackendConfig,
+    ScenarioConfig,
+    MetricsConfig,
+    ReporterConfig,
 )
 
 
@@ -23,12 +26,14 @@ def test_scenario_config_with_reasoning():
         num_samples=10,
         reasoning=True,
         reasoning_params={"reasoning_effort": "high"},
-        generate_kwargs={"max_new_tokens": 100}
+        generate_kwargs={"max_new_tokens": 100},
     )
 
     assert scenario.reasoning == True, "reasoning should be True"
     assert scenario.reasoning_params is not None, "reasoning_params should not be None"
-    assert scenario.reasoning_params["reasoning_effort"] == "high", "reasoning_effort should be 'high'"
+    assert scenario.reasoning_params["reasoning_effort"] == "high", (
+        "reasoning_effort should be 'high'"
+    )
 
     print("✓ ScenarioConfig with reasoning parameters works correctly")
 
@@ -50,7 +55,7 @@ def test_full_benchmark_config():
         num_samples=10,
         reasoning=True,
         reasoning_params={"reasoning_effort": "medium"},
-        generate_kwargs={"max_new_tokens": 100}
+        generate_kwargs={"max_new_tokens": 100},
     )
 
     metrics_cfg = MetricsConfig(
@@ -60,10 +65,7 @@ def test_full_benchmark_config():
         output_dir="./emissions",
     )
 
-    reporter_cfg = ReporterConfig(
-        type="csv",
-        output_file="./results.csv"
-    )
+    reporter_cfg = ReporterConfig(type="csv", output_file="./results.csv")
 
     config = BenchmarkConfig(
         name="test_reasoning",
@@ -71,7 +73,7 @@ def test_full_benchmark_config():
         scenario=scenario_cfg,
         metrics=metrics_cfg,
         reporter=reporter_cfg,
-        output_dir="./output"
+        output_dir="./output",
     )
 
     assert config.scenario.reasoning == True
@@ -90,7 +92,7 @@ def test_reasoning_disabled():
         num_samples=10,
         reasoning=False,
         reasoning_params=None,
-        generate_kwargs={"max_new_tokens": 100}
+        generate_kwargs={"max_new_tokens": 100},
     )
 
     assert scenario.reasoning == False
@@ -100,18 +102,18 @@ def test_reasoning_disabled():
 
 
 def main():
-    print("="*60)
+    print("=" * 60)
     print("REASONING CONFIGURATION TESTS")
-    print("="*60)
+    print("=" * 60)
 
     try:
         test_scenario_config_with_reasoning()
         test_full_benchmark_config()
         test_reasoning_disabled()
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("ALL TESTS PASSED ✓")
-        print("="*60)
+        print("=" * 60)
         return 0
 
     except AssertionError as e:
@@ -120,6 +122,7 @@ def main():
     except Exception as e:
         print(f"\nERROR: {e}")
         import traceback
+
         traceback.print_exc()
         return 1
 
