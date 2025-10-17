@@ -11,6 +11,7 @@ from ai_energy_benchmarks.datasets.base import Dataset
 from ai_energy_benchmarks.datasets.huggingface import HuggingFaceDataset
 from ai_energy_benchmarks.metrics.codecarbon import CodeCarbonCollector
 from ai_energy_benchmarks.reporters.csv_reporter import CSVReporter
+from ai_energy_benchmarks.utils import GPUMonitor
 
 
 class BenchmarkRunner:
@@ -164,6 +165,14 @@ class BenchmarkRunner:
             print("Starting metrics collection...")
             collector.start()
 
+        # Check GPU availability and collect initial stats
+        gpu_ids = self.config.backend.device_ids
+        gpu_availability = GPUMonitor.check_multi_gpu_available(gpu_ids)
+        if not gpu_availability["all_available"]:
+            print(f"Warning: Some GPUs unavailable: {gpu_availability['unavailable_gpus']}")
+        else:
+            print(f"All GPUs available: {gpu_ids}")
+
         # Run inference on all prompts
         start_time = time.time()
         inference_results = []
@@ -197,6 +206,11 @@ class BenchmarkRunner:
         end_time = time.time()
         print(f"\nInference completed in {end_time - start_time:.2f} seconds")
 
+        # Collect final GPU stats
+        final_gpu_stats = GPUMonitor.get_multi_gpu_stats(gpu_ids)
+        print("\nFinal GPU Statistics:")
+        GPUMonitor.print_multi_gpu_info(gpu_ids)
+
         # Stop metrics collection
         energy_metrics: Dict[str, Any] = {}
         if collector is not None:
@@ -204,7 +218,9 @@ class BenchmarkRunner:
             energy_metrics = collector.stop()
 
         # Aggregate results
-        results = self._aggregate_results(inference_results, energy_metrics, end_time - start_time)
+        results = self._aggregate_results(
+            inference_results, energy_metrics, end_time - start_time, final_gpu_stats
+        )
 
         # Report results
         print("Reporting results...")
@@ -230,6 +246,7 @@ class BenchmarkRunner:
         inference_results: List[Dict[str, Any]],
         energy_metrics: Dict[str, Any],
         total_duration: float,
+        gpu_stats: Dict[int, Any],
     ) -> Dict[str, Any]:
         """Aggregate benchmark results.
 
@@ -237,6 +254,7 @@ class BenchmarkRunner:
             inference_results: List of inference results
             energy_metrics: Energy metrics from collector
             total_duration: Total benchmark duration
+            gpu_stats: Final GPU statistics per device
 
         Returns:
             Aggregated results dictionary
@@ -255,6 +273,19 @@ class BenchmarkRunner:
             else 0
         )
 
+        # Process GPU stats for reporting
+        gpu_stats_summary = {}
+        for gpu_id, stats in gpu_stats.items():
+            if stats is not None:
+                gpu_stats_summary[f"gpu_{gpu_id}"] = {
+                    "utilization_percent": stats.utilization_percent,
+                    "memory_used_mb": stats.memory_used_mb,
+                    "memory_total_mb": stats.memory_total_mb,
+                    "memory_percent": stats.memory_percent,
+                    "temperature_c": stats.temperature_c,
+                    "power_draw_w": stats.power_draw_w,
+                }
+
         return {
             "config": {
                 "name": self.config.name,
@@ -262,6 +293,7 @@ class BenchmarkRunner:
                 "model": self.config.backend.model,
                 "dataset": self.config.scenario.dataset_name,
                 "num_samples": self.config.scenario.num_samples,
+                "device_ids": self.config.backend.device_ids,
             },
             "summary": {
                 "total_prompts": len(inference_results),
@@ -277,6 +309,7 @@ class BenchmarkRunner:
                 ),
             },
             "energy": energy_metrics,
+            "gpu_stats": gpu_stats_summary,
             "backend_info": self._get_backend_info(),
             "metrics_metadata": self._get_metrics_metadata(),
         }

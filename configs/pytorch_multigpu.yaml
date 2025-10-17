@@ -1,0 +1,63 @@
+# Multi-GPU PyTorch Configuration
+# Example for large models distributed across multiple GPUs
+# Uses HuggingFace Accelerate's automatic device mapping
+
+name: pytorch_multigpu_benchmark
+
+backend:
+  type: pytorch
+  device: cuda
+  device_ids: [0, 1, 2, 3]  # Specify which GPUs to use (4 GPUs in this example)
+  model: meta-llama/Llama-2-70b-hf  # Large model requiring multiple GPUs
+  torch_dtype: auto  # Automatically select optimal dtype (float16/bfloat16)
+
+  # Device map strategies:
+  # - "auto": Automatically balance model layers across GPUs (recommended)
+  # - "balanced": Evenly distribute layers across all devices
+  # - "balanced_low_0": Balance across GPUs, minimize GPU 0 usage
+  # - "sequential": Fill GPUs sequentially (GPU 0 first, then 1, etc.)
+  device_map: auto
+
+  # Optional: Set maximum memory per GPU (helps prevent OOM errors)
+  # Uncomment and adjust based on your GPU memory (e.g., 20GB per GPU)
+  # max_memory:
+  #   0: "20GB"
+  #   1: "20GB"
+  #   2: "20GB"
+  #   3: "20GB"
+
+scenario:
+  dataset_name: AIEnergyScore/text_generation
+  text_column_name: text
+  num_samples: 50  # Larger sample set for comprehensive benchmarking
+  truncation: true
+  reasoning: false
+  input_shapes:
+    batch_size: 1  # Keep batch_size=1 for inference benchmarking
+  generate_kwargs:
+    max_new_tokens: 200
+    min_new_tokens: 50
+    temperature: 0.7
+    top_p: 0.9
+    top_k: 50
+
+metrics:
+  type: codecarbon
+  enabled: true
+  project_name: "pytorch_multigpu_benchmark"
+  output_dir: "./emissions"
+  country_iso_code: "USA"
+  region: null  # Set to your specific region for accurate carbon intensity
+
+reporter:
+  type: csv
+  output_file: "./results/pytorch_multigpu_results.csv"
+
+output_dir: ./benchmark_output
+
+# Usage Notes:
+# 1. Ensure all GPUs specified in device_ids are available
+# 2. For smaller models that fit on one GPU, use configs/pytorch_test.yaml instead
+# 3. Monitor GPU memory with: watch -n 1 nvidia-smi
+# 4. Adjust max_memory if you encounter OOM errors
+# 5. The benchmark will track energy consumption across all specified GPUs

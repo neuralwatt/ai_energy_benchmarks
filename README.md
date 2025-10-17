@@ -161,8 +161,31 @@ backend:
   type: pytorch
   model: gpt2
   device: cuda
-  device_ids: [0]
+  device_ids: [0]  # Single GPU
 ```
+
+For multi-GPU deployments with large models:
+```yaml
+backend:
+  type: pytorch
+  model: meta-llama/Llama-2-70b-hf
+  device: cuda
+  device_ids: [0, 1, 2, 3]  # Use 4 GPUs
+  device_map: auto  # Automatically distribute model across GPUs
+  torch_dtype: auto  # Auto-select optimal dtype
+  # Optional: Set max memory per GPU to prevent OOM
+  max_memory:
+    0: "20GB"
+    1: "20GB"
+    2: "20GB"
+    3: "20GB"
+```
+
+**Device Map Strategies:**
+- `auto` (recommended): Automatically balance model layers across GPUs
+- `balanced`: Evenly distribute layers across all devices
+- `balanced_low_0`: Balance across GPUs, minimize GPU 0 usage
+- `sequential`: Fill GPUs sequentially (GPU 0 first, then 1, etc.)
 
 ## Project Structure
 
@@ -221,11 +244,54 @@ ruff check ai_energy_benchmarks/
 mypy ai_energy_benchmarks/
 ```
 
+## Multi-GPU Support
+
+The PyTorch backend includes comprehensive multi-GPU support powered by HuggingFace Accelerate:
+
+### Automatic Model Distribution
+
+Large models are automatically distributed across multiple GPUs using the `device_map` parameter:
+
+```bash
+# Run multi-GPU benchmark
+./run_benchmark.sh configs/pytorch_multigpu.yaml
+```
+
+### GPU Metrics Collection
+
+The framework automatically collects and reports per-GPU metrics:
+- **GPU Utilization**: Percentage utilization per GPU
+- **Memory Usage**: Used and total memory per GPU
+- **Temperature**: GPU temperature (if available)
+- **Power Draw**: Power consumption per GPU (if available)
+
+Metrics are included in CSV output with columns like:
+- `gpu_stats_gpu_0_utilization_percent`
+- `gpu_stats_gpu_1_memory_used_mb`
+- `gpu_stats_gpu_2_power_draw_w`
+
+### Monitoring Multiple GPUs
+
+```bash
+# Monitor GPU usage during benchmark
+watch -n 1 nvidia-smi
+
+# Check specific GPUs
+nvidia-smi -i 0,1,2,3
+```
+
+### Troubleshooting Multi-GPU
+
+1. **OOM Errors**: Set `max_memory` per GPU in config
+2. **GPU Not Found**: Verify GPUs with `nvidia-smi` and update `device_ids`
+3. **Unbalanced Load**: Try different `device_map` strategies
+4. **CUDA Errors**: Ensure CUDA is properly installed and GPUs are visible
+
 ## Output Files
 
 Benchmarks generate several output files:
 
-- **Results CSV**: Detailed benchmark results (`results/`)
+- **Results CSV**: Detailed benchmark results with per-GPU metrics (`results/`)
 - **Emissions Data**: CodeCarbon emissions tracking (`emissions/`)
 - **Logs**: Benchmark execution logs (`benchmark_output/`)
 
