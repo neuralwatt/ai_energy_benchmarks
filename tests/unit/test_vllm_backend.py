@@ -1,7 +1,7 @@
 """Unit tests for vLLM backend."""
 
-import pytest
 from unittest.mock import Mock, patch
+
 from ai_energy_benchmarks.backends.vllm import VLLMBackend
 
 

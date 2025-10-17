@@ -1,7 +1,9 @@
 """Unit tests for HuggingFace dataset loader."""
 
-import pytest
 from unittest.mock import Mock, patch
+
+import pytest
+
 from ai_energy_benchmarks.datasets.huggingface import HuggingFaceDataset
 
 

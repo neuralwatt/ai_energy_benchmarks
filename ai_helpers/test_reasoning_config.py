@@ -8,11 +8,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from ai_energy_benchmarks.config.parser import (
-    BenchmarkConfig,
     BackendConfig,
-    ScenarioConfig,
+    BenchmarkConfig,
     MetricsConfig,
     ReporterConfig,
+    ScenarioConfig,
 )
 
 
@@ -29,11 +29,11 @@ def test_scenario_config_with_reasoning():
         generate_kwargs={"max_new_tokens": 100},
     )
 
-    assert scenario.reasoning == True, "reasoning should be True"
+    assert scenario.reasoning, "reasoning should be True"
     assert scenario.reasoning_params is not None, "reasoning_params should not be None"
-    assert scenario.reasoning_params["reasoning_effort"] == "high", (
-        "reasoning_effort should be 'high'"
-    )
+    assert (
+        scenario.reasoning_params["reasoning_effort"] == "high"
+    ), "reasoning_effort should be 'high'"
 
     print("✓ ScenarioConfig with reasoning parameters works correctly")
 
@@ -76,7 +76,8 @@ def test_full_benchmark_config():
         output_dir="./output",
     )
 
-    assert config.scenario.reasoning == True
+    assert config.scenario.reasoning
+    assert config.scenario.reasoning_params is not None
     assert config.scenario.reasoning_params["reasoning_effort"] == "medium"
 
     print("✓ Full BenchmarkConfig with reasoning works correctly")
@@ -95,7 +96,7 @@ def test_reasoning_disabled():
         generate_kwargs={"max_new_tokens": 100},
     )
 
-    assert scenario.reasoning == False
+    assert not scenario.reasoning
     assert scenario.reasoning_params is None
 
     print("✓ Config with reasoning disabled works correctly")

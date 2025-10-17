@@ -1,8 +1,9 @@
-import subprocess
-import pandas as pd
-import time
-import sys
 import os
+import subprocess
+import sys
+import time
+
+import pandas as pd
 
 
 def get_nvidia_smi_output():

@@ -5,22 +5,18 @@ Tests that parameters are correctly passed through the system.
 """
 
 import sys
-import json
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 # Add ai_energy_benchmarks to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from ai_energy_benchmarks.config.parser import (
-    BenchmarkConfig,
-    BackendConfig,
-    ScenarioConfig,
-    MetricsConfig,
-    ReporterConfig,
-)
 from ai_energy_benchmarks.backends.pytorch import PyTorchBackend
 from ai_energy_benchmarks.backends.vllm import VLLMBackend
+from ai_energy_benchmarks.config.parser import (
+    BackendConfig,
+    ScenarioConfig,
+)
 
 
 def test_pytorch_backend_reasoning_params():
@@ -45,7 +41,7 @@ def test_pytorch_backend_reasoning_params():
     backend.model.generate = Mock(return_value=Mock(shape=(1, 20)))
 
     # Test with reasoning params
-    result = backend.run_inference(
+    backend.run_inference(
         prompt="Test prompt", max_tokens=100, reasoning_params={"reasoning_effort": "high"}
     )
 
@@ -80,7 +76,7 @@ def test_vllm_backend_reasoning_params():
         mock_post.return_value = mock_response
 
         # Run inference with reasoning params
-        result = backend.run_inference(
+        backend.run_inference(
             prompt="Test prompt", max_tokens=100, reasoning_params={"reasoning_effort": "medium"}
         )
 
@@ -93,12 +89,12 @@ def test_vllm_backend_reasoning_params():
 
         # Verify extra_body contains reasoning params
         assert "extra_body" in payload, "payload should contain extra_body"
-        assert "reasoning_effort" in payload["extra_body"], (
-            "extra_body should contain reasoning_effort"
-        )
-        assert payload["extra_body"]["reasoning_effort"] == "medium", (
-            "reasoning_effort should be 'medium'"
-        )
+        assert (
+            "reasoning_effort" in payload["extra_body"]
+        ), "extra_body should contain reasoning_effort"
+        assert (
+            payload["extra_body"]["reasoning_effort"] == "medium"
+        ), "reasoning_effort should be 'medium'"
 
     print("✓ vLLM backend correctly translates reasoning params to extra_body")
     return True
@@ -109,7 +105,7 @@ def test_config_to_backend_flow():
     print("\nTesting full config-to-backend parameter flow...")
 
     # Create config with reasoning
-    backend_cfg = BackendConfig(
+    BackendConfig(
         type="pytorch",
         model="mock-model",
         device="cpu",
@@ -126,11 +122,11 @@ def test_config_to_backend_flow():
     )
 
     # Verify config has reasoning params
-    assert scenario_cfg.reasoning == True, "reasoning should be True"
+    assert scenario_cfg.reasoning, "reasoning should be True"
     assert scenario_cfg.reasoning_params is not None, "reasoning_params should not be None"
-    assert scenario_cfg.reasoning_params["reasoning_effort"] == "low", (
-        "reasoning_effort should be 'low'"
-    )
+    assert (
+        scenario_cfg.reasoning_params["reasoning_effort"] == "low"
+    ), "reasoning_effort should be 'low'"
 
     print("✓ Config correctly stores reasoning parameters")
 
@@ -144,9 +140,9 @@ def test_config_to_backend_flow():
         gen_kwargs["reasoning_params"] = scenario_cfg.reasoning_params
 
     assert "reasoning_params" in gen_kwargs, "reasoning_params should be in gen_kwargs"
-    assert gen_kwargs["reasoning_params"]["reasoning_effort"] == "low", (
-        "Should pass through correctly"
-    )
+    assert (
+        gen_kwargs["reasoning_params"]["reasoning_effort"] == "low"
+    ), "Should pass through correctly"
 
     print("✓ Parameters flow correctly from config to generation kwargs")
     return True
@@ -165,7 +161,7 @@ def test_reasoning_disabled():
         generate_kwargs={"max_new_tokens": 50},
     )
 
-    assert scenario_cfg.reasoning == False, "reasoning should be False"
+    assert not scenario_cfg.reasoning, "reasoning should be False"
     assert scenario_cfg.reasoning_params is None, "reasoning_params should be None"
 
     # Prepare kwargs as runner would
@@ -175,9 +171,9 @@ def test_reasoning_disabled():
     if scenario_cfg.reasoning and scenario_cfg.reasoning_params:
         gen_kwargs["reasoning_params"] = scenario_cfg.reasoning_params
 
-    assert "reasoning_params" not in gen_kwargs, (
-        "reasoning_params should NOT be in gen_kwargs when disabled"
-    )
+    assert (
+        "reasoning_params" not in gen_kwargs
+    ), "reasoning_params should NOT be in gen_kwargs when disabled"
 
     print("✓ Reasoning disabled mode works correctly")
     return True

@@ -32,14 +32,15 @@ Command-line options:
 Copyright (c) 2025 NeuralWatt Corp. All rights reserved.
 """
 
+import argparse
+import csv
+import json
+import os
+import random
 import subprocess
 import time
-import json
-import csv
-import os
-import argparse
-import random
 from datetime import datetime
+
 import pandas as pd
 
 # Parse command-line arguments
@@ -181,7 +182,7 @@ else:
 # If random prompts is enabled, shuffle the prompts
 if random_prompts:
     random.shuffle(prompts)
-    print(f"Prompts have been randomly shuffled")
+    print("Prompts have been randomly shuffled")
 
 # If random count is enabled, select a random subset of prompts
 if random_count:
@@ -216,9 +217,13 @@ if limiting_mode == "power":
     )
 
     power_limits = list(
-        range(min_power_limit, max_power_limit, int((max_power_limit - min_power_limit) * 0.1))
+        range(
+            int(min_power_limit),
+            int(max_power_limit),
+            int((max_power_limit - min_power_limit) * 0.1),
+        )
     )
-    power_limits[-1] = max_power_limit
+    power_limits[-1] = int(max_power_limit)
 
     print(f"Power limits: {power_limits}")
 
@@ -227,11 +232,11 @@ elif limiting_mode == "frequency":
         "nvidia-smi --query-supported-clocks=graphics,memory --format=csv", shell=True
     ).decode()
     valid_gpu_frequencies = sorted(
-        set(
+        {
             int(line.split(",")[0].strip().replace(" MHz", ""))
             for line in gpu_frequencies_output.splitlines()
             if " MHz" in line
-        )
+        }
     )
 
     gpu_frequencies = [
@@ -388,8 +393,9 @@ while True:
         )
         query_end_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
 
-        print(f"response: {response}")
-        response_array = [json.loads(line) for line in response.decode().split("\n") if line]
+        response_str = response.decode() if isinstance(response, bytes) else str(response)
+        print(f"response: {response_str}")
+        response_array = [json.loads(line) for line in response_str.split("\n") if line]
 
         if print_responses or log_file:
             full_response = ""

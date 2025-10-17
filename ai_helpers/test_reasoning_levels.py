@@ -10,21 +10,21 @@ and compares the results to ensure consistency.
 """
 
 import json
-import sys
 import os
 import subprocess
+import sys
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Any, Dict
 
 # Add ai_energy_benchmarks to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from ai_energy_benchmarks.config.parser import (
-    BenchmarkConfig,
     BackendConfig,
-    ScenarioConfig,
+    BenchmarkConfig,
     MetricsConfig,
     ReporterConfig,
+    ScenarioConfig,
 )
 from ai_energy_benchmarks.runner import BenchmarkRunner
 
@@ -203,7 +203,8 @@ def run_optimum_benchmark(reasoning_effort: str, output_dir: Path) -> Dict[str, 
         result_file = output_path / "benchmark_report.json"
         if result_file.exists():
             with open(result_file) as f:
-                return json.load(f)
+                loaded_results: dict[str, Any] = json.load(f)
+                return loaded_results
         else:
             return {"error": "no_results_file"}
 
@@ -280,13 +281,13 @@ def compare_results(all_results: Dict[str, Dict[str, Any]]) -> None:
                 print(f"    {effort}: {lat:.2f}s")
 
             # Check for variation
-            lat_values = [l[1] for l in latencies]
+            lat_values = [latency[1] for latency in latencies]
             if max(lat_values) - min(lat_values) > 0.5:
                 print(
                     f"  ✓ Latency varies with reasoning effort (range: {min(lat_values):.2f}s - {max(lat_values):.2f}s)"
                 )
             else:
-                print(f"  ⚠ Latency does NOT vary significantly with reasoning effort")
+                print("  ⚠ Latency does NOT vary significantly with reasoning effort")
 
         if energies:
             print("  Energies:")
@@ -300,7 +301,7 @@ def compare_results(all_results: Dict[str, Dict[str, Any]]) -> None:
                     f"  ✓ Energy varies with reasoning effort (range: {min(eng_values):.2f}Wh - {max(eng_values):.2f}Wh)"
                 )
             else:
-                print(f"  ⚠ Energy does NOT vary significantly with reasoning effort")
+                print("  ⚠ Energy does NOT vary significantly with reasoning effort")
 
 
 def main():
@@ -339,7 +340,7 @@ def main():
                 print(f"ERROR: vLLM backend failed for {effort}: {e}")
                 all_results[f"vllm_{effort}"] = {"error": str(e)}
         else:
-            print(f"SKIPPING vLLM backend test (no endpoint configured)")
+            print("SKIPPING vLLM backend test (no endpoint configured)")
 
         # Test optimum-benchmark
         try:

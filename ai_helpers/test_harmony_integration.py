@@ -7,7 +7,6 @@ apply Harmony formatting for gpt-oss models.
 """
 
 import sys
-import os
 from pathlib import Path
 
 # Add parent directory to path
@@ -28,8 +27,8 @@ def test_harmony_auto_detection():
     backend_pytorch = PyTorchBackend(model="openai/gpt-oss-20b")
     backend_vllm = VLLMBackend(endpoint="http://localhost:8000/v1", model="openai/gpt-oss-20b")
 
-    assert backend_pytorch.use_harmony == True, "PyTorch should auto-enable Harmony for gpt-oss-20b"
-    assert backend_vllm.use_harmony == True, "vLLM should auto-enable Harmony for gpt-oss-20b"
+    assert backend_pytorch.use_harmony, "PyTorch should auto-enable Harmony for gpt-oss-20b"
+    assert backend_vllm.use_harmony, "vLLM should auto-enable Harmony for gpt-oss-20b"
     print("  ✓ PyTorch backend: Harmony enabled")
     print("  ✓ vLLM backend: Harmony enabled")
 
@@ -38,10 +37,8 @@ def test_harmony_auto_detection():
     backend_pytorch = PyTorchBackend(model="openai/gpt-oss-120b")
     backend_vllm = VLLMBackend(endpoint="http://localhost:8000/v1", model="openai/gpt-oss-120b")
 
-    assert backend_pytorch.use_harmony == True, (
-        "PyTorch should auto-enable Harmony for gpt-oss-120b"
-    )
-    assert backend_vllm.use_harmony == True, "vLLM should auto-enable Harmony for gpt-oss-120b"
+    assert backend_pytorch.use_harmony, "PyTorch should auto-enable Harmony for gpt-oss-120b"
+    assert backend_vllm.use_harmony, "vLLM should auto-enable Harmony for gpt-oss-120b"
     print("  ✓ PyTorch backend: Harmony enabled")
     print("  ✓ vLLM backend: Harmony enabled")
 
@@ -52,8 +49,8 @@ def test_harmony_auto_detection():
         endpoint="http://localhost:8000/v1", model="nvidia/Llama-3.3-70B-Instruct-FP8"
     )
 
-    assert backend_pytorch.use_harmony == False, "PyTorch should NOT enable Harmony for Llama"
-    assert backend_vllm.use_harmony == False, "vLLM should NOT enable Harmony for Llama"
+    assert not backend_pytorch.use_harmony, "PyTorch should NOT enable Harmony for Llama"
+    assert not backend_vllm.use_harmony, "vLLM should NOT enable Harmony for Llama"
     print("  ✓ PyTorch backend: Harmony disabled")
     print("  ✓ vLLM backend: Harmony disabled")
 
@@ -66,8 +63,8 @@ def test_harmony_auto_detection():
         use_harmony=True,
     )
 
-    assert backend_pytorch.use_harmony == True, "PyTorch should respect manual override"
-    assert backend_vllm.use_harmony == True, "vLLM should respect manual override"
+    assert backend_pytorch.use_harmony, "PyTorch should respect manual override"
+    assert backend_vllm.use_harmony, "vLLM should respect manual override"
     print("  ✓ PyTorch backend: Harmony enabled (manual override)")
     print("  ✓ vLLM backend: Harmony enabled (manual override)")
 
@@ -108,10 +105,10 @@ def test_harmony_formatting():
         print(f"  ✓ vLLM: Correct Harmony format with {effort} reasoning")
 
         # Verify both backends produce identical format
-        assert pytorch_formatted == vllm_formatted, (
-            "PyTorch and vLLM should produce identical Harmony format"
-        )
-        print(f"  ✓ Both backends produce identical format")
+        assert (
+            pytorch_formatted == vllm_formatted
+        ), "PyTorch and vLLM should produce identical Harmony format"
+        print("  ✓ Both backends produce identical format")
 
     # Show example
     print("\n" + "=" * 60)

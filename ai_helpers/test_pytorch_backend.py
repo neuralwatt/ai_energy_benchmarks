@@ -5,11 +5,12 @@ import sys
 
 sys.path.insert(0, ".")
 
-from ai_energy_benchmarks.backends.pytorch import PyTorchBackend
-from ai_energy_benchmarks.utils.gpu import GPUMonitor
-from ai_energy_benchmarks.reporters.csv_reporter import CSVReporter
 import os
 import time
+
+from ai_energy_benchmarks.backends.pytorch import PyTorchBackend
+from ai_energy_benchmarks.reporters.csv_reporter import CSVReporter
+from ai_energy_benchmarks.utils.gpu import GPUMonitor
 
 
 def print_banner(text):
@@ -35,7 +36,7 @@ def main():
     num_prompts = 3
     output_file = "./results/pytorch_backend_test.csv"
 
-    print(f"Configuration:")
+    print("Configuration:")
     print(f"  Model: {model_name}")
     print(f"  Prompts: {num_prompts}")
     print(f"  Output: {output_file}")
@@ -98,7 +99,7 @@ def main():
     # Check GPU after loading
     after_load = GPUMonitor.get_gpu_stats(0)
     if after_load:
-        print(f"\nGPU State After Model Load:")
+        print("\nGPU State After Model Load:")
         print(
             f"  Memory: {after_load.memory_used_mb:.0f} MB / {after_load.memory_total_mb:.0f} MB ({after_load.memory_percent:.1f}%)"
         )
@@ -116,8 +117,8 @@ def main():
         print(f"\nPrompt {i + 1}/{len(test_prompts)}: '{prompt}'")
         print("Running inference with GPU monitoring...")
 
-        def run_inference():
-            return backend.run_inference(prompt, max_tokens=30)
+        def run_inference(p=prompt):
+            return backend.run_inference(p, max_tokens=30)
 
         monitored = GPUMonitor.monitor_during_operation(run_inference, gpu_id=0, interval=0.1)
 
@@ -133,7 +134,7 @@ def main():
 
         # Display results
         if result["success"]:
-            print(f"  ✓ Success")
+            print("  ✓ Success")
             print(f"    Response: {result['text'][:80]}...")
             print(
                 f"    Tokens: {result['total_tokens']} ({result['prompt_tokens']} + {result['completion_tokens']})"
@@ -178,7 +179,7 @@ def main():
     print(f"Total tokens: {total_tokens}")
     print(f"Average latency: {avg_latency:.3f}s")
     print(f"Throughput: {throughput:.2f} tokens/second")
-    print(f"\nGPU Statistics:")
+    print("\nGPU Statistics:")
     print(f"  Average utilization: {avg_gpu_util:.1f}%")
     print(f"  Peak utilization: {max_gpu_util:.1f}%")
     print(f"  Average memory: {avg_memory:.0f} MB")
@@ -211,8 +212,8 @@ def main():
 
     time.sleep(1)
     after_cleanup = GPUMonitor.get_gpu_stats(0)
-    if after_cleanup:
-        print(f"\nGPU State After Cleanup:")
+    if after_cleanup and after_load:
+        print("\nGPU State After Cleanup:")
         print(
             f"  Memory: {after_cleanup.memory_used_mb:.0f} MB ({after_cleanup.memory_percent:.1f}%)"
         )
@@ -223,7 +224,7 @@ def main():
     if any_gpu_active and len(successful) == len(test_prompts):
         print("✓ PyTorch Backend Test PASSED")
         print(f"  - All {len(test_prompts)} inferences successful")
-        print(f"  - GPU activity confirmed")
+        print("  - GPU activity confirmed")
         print(f"  - Throughput: {throughput:.2f} tok/s")
         return 0
     else:

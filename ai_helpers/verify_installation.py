@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Verify POC installation and dependencies."""
 
-import sys
 import importlib.util
+import sys
 
 
 def check_import(module_name, package_name=None):
@@ -63,7 +63,7 @@ def main():
 
     if check_import("ai_energy_benchmarks.backends.vllm"):
         try:
-            from ai_energy_benchmarks.backends.vllm import VLLMBackend
+            from ai_energy_benchmarks.backends.vllm import VLLMBackend  # noqa: F401
 
             print("  ✓ VLLMBackend class available")
         except ImportError:
@@ -72,7 +72,7 @@ def main():
 
     if check_import("ai_energy_benchmarks.config.parser"):
         try:
-            from ai_energy_benchmarks.config.parser import ConfigParser
+            from ai_energy_benchmarks.config.parser import ConfigParser  # noqa: F401
 
             print("  ✓ ConfigParser class available")
         except ImportError:
@@ -81,7 +81,7 @@ def main():
 
     if check_import("ai_energy_benchmarks.runner"):
         try:
-            from ai_energy_benchmarks.runner import BenchmarkRunner
+            from ai_energy_benchmarks.runner import BenchmarkRunner  # noqa: F401
 
             print("  ✓ BenchmarkRunner class available")
         except ImportError:

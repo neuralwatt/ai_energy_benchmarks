@@ -1,9 +1,9 @@
 """Unit tests for CSV reporter."""
 
-import pytest
-import tempfile
-import os
 import csv
+import os
+import tempfile
+
 from ai_energy_benchmarks.reporters.csv_reporter import CSVReporter
 
 

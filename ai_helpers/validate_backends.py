@@ -6,11 +6,10 @@ import time
 
 sys.path.insert(0, ".")
 
-from ai_energy_benchmarks.backends.vllm import VLLMBackend
+
 from ai_energy_benchmarks.backends.pytorch import PyTorchBackend
+from ai_energy_benchmarks.backends.vllm import VLLMBackend
 from ai_energy_benchmarks.utils.gpu import GPUMonitor
-from ai_energy_benchmarks.reporters.csv_reporter import CSVReporter
-import os
 
 
 def print_banner(text):
@@ -78,14 +77,14 @@ def validate_vllm_backend():
     gpu_stats = monitored_result["gpu_stats"]
 
     # Display results
-    print(f"\n✓ Inference successful")
+    print("\n✓ Inference successful")
     print(f"  Response: {result['text'][:100]}...")
     print(
         f"  Tokens: {result['total_tokens']} ({result['prompt_tokens']} prompt + {result['completion_tokens']} completion)"
     )
     print(f"  Latency: {result['latency_seconds']:.3f}s")
 
-    print(f"\nGPU Statistics:")
+    print("\nGPU Statistics:")
     print(f"  Samples collected: {gpu_stats['samples']}")
     print(f"  Average utilization: {gpu_stats['avg_utilization_percent']:.1f}%")
     print(f"  Peak utilization: {gpu_stats['max_utilization_percent']:.1f}%")
@@ -183,14 +182,14 @@ def validate_pytorch_backend():
     gpu_stats = monitored_result["gpu_stats"]
 
     # Display results
-    print(f"\n✓ Inference successful")
+    print("\n✓ Inference successful")
     print(f"  Response: {result['text'][:100]}...")
     print(
         f"  Tokens: {result['total_tokens']} ({result['prompt_tokens']} prompt + {result['completion_tokens']} completion)"
     )
     print(f"  Latency: {result['latency_seconds']:.3f}s")
 
-    print(f"\nGPU Statistics:")
+    print("\nGPU Statistics:")
     print(f"  Samples collected: {gpu_stats['samples']}")
     print(f"  Average utilization: {gpu_stats['avg_utilization_percent']:.1f}%")
     print(f"  Peak utilization: {gpu_stats['max_utilization_percent']:.1f}%")
@@ -223,7 +222,7 @@ def main():
     """Run comprehensive validation."""
     print_banner("AI ENERGY BENCHMARKS - BACKEND VALIDATION WITH GPU MONITORING")
 
-    results = {"vllm": None, "pytorch": None}
+    results: dict[str, bool] = {"vllm": False, "pytorch": False}
 
     # Validate vLLM backend
     try:

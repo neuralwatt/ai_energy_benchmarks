@@ -1,9 +1,11 @@
 """Unit tests for configuration parser."""
 
-import pytest
-import tempfile
 import os
-from ai_energy_benchmarks.config.parser import ConfigParser, BenchmarkConfig
+import tempfile
+
+import pytest
+
+from ai_energy_benchmarks.config.parser import BenchmarkConfig, ConfigParser
 
 
 class TestConfigParser:

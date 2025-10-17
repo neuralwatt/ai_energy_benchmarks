@@ -4,8 +4,8 @@ Simplified benchmark runner that works without optional dependencies.
 Uses manual prompts instead of HuggingFace datasets.
 """
 
-import sys
 import os
+import sys
 import time
 
 sys.path.insert(0, ".")
@@ -64,7 +64,7 @@ def run_simple_benchmark(
     # Select requested number of prompts
     prompts = all_prompts[:num_samples]
 
-    print(f"Configuration:")
+    print("Configuration:")
     print(f"  Model: {model}")
     print(f"  Endpoint: {endpoint}")
     print(f"  Prompts: {len(prompts)}")
