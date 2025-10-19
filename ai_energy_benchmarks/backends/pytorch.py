@@ -2,9 +2,11 @@
 
 import importlib.util
 import time
+import warnings
 from typing import Any, Dict, List, Optional
 
 from ai_energy_benchmarks.backends.base import Backend
+from ai_energy_benchmarks.formatters.registry import FormatterRegistry
 
 
 class PyTorchBackend(Backend):
@@ -29,7 +31,7 @@ class PyTorchBackend(Backend):
             torch_dtype: Torch dtype (auto/float16/bfloat16/float32)
             device_map: Device map strategy (auto/balanced/sequential)
             max_memory: Max memory per device
-            use_harmony: Enable Harmony formatting for gpt-oss models (auto-detects if None)
+            use_harmony: DEPRECATED - Enable Harmony formatting for gpt-oss models (auto-detects if None)
         """
         self.model_name = model
         self.device = device
@@ -38,11 +40,29 @@ class PyTorchBackend(Backend):
         self.device_map = device_map
         self.max_memory = max_memory
 
-        # Auto-detect Harmony formatting for gpt-oss models
+        # DEPRECATED: Backward compatibility
+        self._legacy_use_harmony: Optional[bool]
+        if use_harmony is not None:
+            warnings.warn(
+                "use_harmony parameter is deprecated. "
+                "Reasoning format is now auto-detected via FormatterRegistry. "
+                "This parameter will be removed in v2.0.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            self._legacy_use_harmony = use_harmony
+        else:
+            self._legacy_use_harmony = None
+
+        # Auto-detect Harmony formatting for gpt-oss models (legacy)
         detected_use_harmony = (
             use_harmony if use_harmony is not None else "gpt-oss" in model.lower()
         )
         self.use_harmony: bool = bool(detected_use_harmony)
+
+        # Initialize formatter registry
+        self.formatter_registry = FormatterRegistry()
+        self.formatter = self.formatter_registry.get_formatter(model)
 
         self.model: Any = None
         self.tokenizer: Any = None
@@ -148,7 +168,7 @@ class PyTorchBackend(Backend):
             raise
 
     def format_harmony_prompt(self, text: str, reasoning_effort: str = "high") -> str:
-        """Format a prompt using OpenAI Harmony formatting for gpt-oss models.
+        """DEPRECATED: Format a prompt using OpenAI Harmony formatting for gpt-oss models.
 
         Args:
             text: The user's question/prompt text
@@ -157,6 +177,11 @@ class PyTorchBackend(Backend):
         Returns:
             Harmony-formatted prompt with system message and user message
         """
+        warnings.warn(
+            "format_harmony_prompt() is deprecated. Use FormatterRegistry instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         # Harmony format structure with system and user messages
         harmony_prompt = (
             "<|start|>system<|message|>"
@@ -232,8 +257,12 @@ class PyTorchBackend(Backend):
         try:
             import torch
 
-            # Apply Harmony formatting if enabled for gpt-oss models
-            if self.use_harmony:
+            # Format prompt using registry formatter (new approach)
+            if self.formatter:
+                # Use new formatter from registry
+                prompt = self.formatter.format_prompt(prompt, reasoning_params)
+            elif self._legacy_use_harmony:
+                # DEPRECATED: Legacy Harmony formatting
                 reasoning_effort = "high"  # Default
                 if reasoning_params and "reasoning_effort" in reasoning_params:
                     reasoning_effort = reasoning_params["reasoning_effort"]
@@ -273,8 +302,13 @@ class PyTorchBackend(Backend):
                 "pad_token_id": self.tokenizer.pad_token_id,
             }
 
-            # Add reasoning parameters if provided
-            if reasoning_params:
+            # Add formatter-provided generation parameters
+            if self.formatter:
+                extra_gen_params = self.formatter.get_generation_params(reasoning_params)
+                gen_kwargs.update(extra_gen_params)
+
+            # Add reasoning parameters if provided (legacy path)
+            if reasoning_params and not self.formatter:
                 # Handle different reasoning parameter formats
                 if "reasoning_effort" in reasoning_params:
                     effort = reasoning_params["reasoning_effort"]

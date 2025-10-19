@@ -1,11 +1,13 @@
 """vLLM backend implementation for high-performance inference."""
 
 import time
+import warnings
 from typing import Any, Dict, Optional, cast
 
 import requests  # type: ignore[import-untyped]
 
 from ai_energy_benchmarks.backends.base import Backend
+from ai_energy_benchmarks.formatters.registry import FormatterRegistry
 
 
 class VLLMBackend(Backend):
@@ -24,20 +26,38 @@ class VLLMBackend(Backend):
             endpoint: vLLM server endpoint (e.g., "http://localhost:8000/v1")
             model: Model name (e.g., "openai/gpt-oss-120b")
             timeout: Request timeout in seconds
-            use_harmony: Enable Harmony formatting for gpt-oss models (auto-detects if None)
+            use_harmony: DEPRECATED - Enable Harmony formatting for gpt-oss models (auto-detects if None)
         """
         self.endpoint = endpoint.rstrip("/v1").rstrip("/")
         self.model = model
         self.timeout = timeout
 
-        # Auto-detect Harmony formatting for gpt-oss models
+        # DEPRECATED: Backward compatibility
+        self._legacy_use_harmony: Optional[bool]
+        if use_harmony is not None:
+            warnings.warn(
+                "use_harmony parameter is deprecated. "
+                "Reasoning format is now auto-detected via FormatterRegistry. "
+                "This parameter will be removed in v2.0.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            self._legacy_use_harmony = use_harmony
+        else:
+            self._legacy_use_harmony = None
+
+        # Auto-detect Harmony formatting for gpt-oss models (legacy)
         detected_use_harmony = (
             use_harmony if use_harmony is not None else "gpt-oss" in model.lower()
         )
         self.use_harmony: bool = bool(detected_use_harmony)
 
+        # Initialize formatter registry
+        self.formatter_registry = FormatterRegistry()
+        self.formatter = self.formatter_registry.get_formatter(model)
+
     def format_harmony_prompt(self, text: str, reasoning_effort: str = "high") -> str:
-        """Format a prompt using OpenAI Harmony formatting for gpt-oss models.
+        """DEPRECATED: Format a prompt using OpenAI Harmony formatting for gpt-oss models.
 
         Args:
             text: The user's question/prompt text
@@ -46,6 +66,11 @@ class VLLMBackend(Backend):
         Returns:
             Harmony-formatted prompt with system message and user message
         """
+        warnings.warn(
+            "format_harmony_prompt() is deprecated. Use FormatterRegistry instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         # Harmony format structure with system and user messages
         harmony_prompt = (
             "<|start|>system<|message|>"
@@ -127,9 +152,16 @@ class VLLMBackend(Backend):
         """
         start_time = time.time()
 
-        # Apply Harmony formatting if enabled for gpt-oss models
+        # Format prompt using registry formatter (new approach)
         formatted_prompt = prompt
-        if self.use_harmony:
+        extra_gen_params: Dict[str, Any] = {}
+
+        if self.formatter:
+            # Use new formatter from registry
+            formatted_prompt = self.formatter.format_prompt(prompt, reasoning_params)
+            extra_gen_params = self.formatter.get_generation_params(reasoning_params)
+        elif self._legacy_use_harmony:
+            # DEPRECATED: Legacy Harmony formatting
             reasoning_effort = "high"  # Default
             if reasoning_params and "reasoning_effort" in reasoning_params:
                 reasoning_effort = reasoning_params["reasoning_effort"]
@@ -143,10 +175,14 @@ class VLLMBackend(Backend):
             "temperature": temperature,
         }
 
-        # Add reasoning parameters via extra_body if provided
-        if reasoning_params:
+        # Add formatter-provided parameters
+        if extra_gen_params:
+            payload["extra_body"] = extra_gen_params
+
+        # Add reasoning parameters via extra_body if provided (legacy path)
+        if reasoning_params and not self.formatter:
             # vLLM/OpenAI API supports extra_body for custom parameters
-            extra_body: Dict[str, Any] = {}
+            extra_body = cast(Dict[str, Any], payload.get("extra_body", {}))
 
             # Map reasoning effort to model-specific parameters
             if "reasoning_effort" in reasoning_params:

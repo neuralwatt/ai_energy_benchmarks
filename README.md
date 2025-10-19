@@ -12,6 +12,7 @@ AI Energy Benchmarks provides a flexible framework for measuring the energy foot
 - **Energy Tracking**: Integrated CodeCarbon metrics for energy consumption and CO₂ emissions
 - **Flexible Configuration**: YAML-based configuration following Hydra/OmegaConf patterns
 - **Dataset Integration**: Built-in support for HuggingFace datasets
+- **Reasoning Format Support**: Automatic detection and formatting for reasoning-capable models (gpt-oss, DeepSeek, SmolLM, Qwen, etc.)
 - **Modular Design**: Easy to extend with new backends, metrics, or reporters
 - **Docker Support**: Containerized deployment for reproducible benchmarks
 
@@ -187,6 +188,150 @@ backend:
 - `balanced_low_0`: Balance across GPUs, minimize GPU 0 usage
 - `sequential`: Fill GPUs sequentially (GPU 0 first, then 1, etc.)
 
+## Reasoning Format Support
+
+AI Energy Benchmarks includes a unified reasoning format system that automatically detects and formats prompts for reasoning-capable models. This system eliminates the need for model-specific code changes.
+
+### Supported Models
+
+The framework automatically handles reasoning formats for:
+
+| Model Family | Format Type | Enable Method | Example Usage |
+|--------------|-------------|---------------|---------------|
+| **gpt-oss** (OpenAI) | Harmony | `reasoning_effort: high/medium/low` | Structured system prompts |
+| **SmolLM3** | System Prompt | `/think` flag | Prepended to prompts |
+| **DeepSeek-R1** | Prefix | `<think>` tag | Prepended to prompts |
+| **Qwen** | Parameter | `enable_thinking: true` | API parameter |
+| **Hunyuan** | System Prompt | `/think` flag | Prepended to prompts |
+| **Nemotron** | System Prompt | `/no_think` to disable | Default enabled |
+| **EXAONE** | Parameter | `enable_thinking: true` | API parameter |
+| **Phi** (Microsoft) | Parameter | `reasoning: true` | API parameter |
+| **Gemma** (Google) | Parameter | `reasoning: true` | API parameter |
+
+### Using Reasoning Parameters
+
+#### Basic Example (vLLM Backend)
+
+```yaml
+backend:
+  type: vllm
+  endpoint: "http://localhost:8000/v1"
+  model: openai/gpt-oss-20b
+
+scenario:
+  reasoning_params:
+    reasoning_effort: high  # Options: low, medium, high
+```
+
+#### PyTorch Backend Example
+
+```yaml
+backend:
+  type: pytorch
+  model: HuggingFaceTB/SmolLM3-3B
+  device: cuda
+
+scenario:
+  reasoning_params:
+    enable_thinking: true
+```
+
+#### DeepSeek Example
+
+```yaml
+backend:
+  type: pytorch
+  model: deepseek-ai/DeepSeek-R1
+
+scenario:
+  reasoning_params:
+    enable_thinking: true
+    thinking_budget: 1000  # Token budget for reasoning
+```
+
+### Programmatic Usage
+
+```python
+from ai_energy_benchmarks.backends.vllm import VLLMBackend
+
+# Backend automatically detects model and applies correct formatting
+backend = VLLMBackend(
+    endpoint="http://localhost:8000/v1",
+    model="openai/gpt-oss-20b"
+)
+
+# Run inference with reasoning parameters
+result = backend.run_inference(
+    prompt="Explain quantum entanglement",
+    reasoning_params={"reasoning_effort": "high"}
+)
+```
+
+### How It Works
+
+1. **Automatic Detection**: The `FormatterRegistry` automatically detects the model type from the model name
+2. **Format Selection**: The appropriate formatter is selected from `ai_energy_benchmarks/config/reasoning_formats.yaml`
+3. **Prompt Formatting**: The formatter modifies the prompt and/or generation parameters as needed
+4. **Backward Compatibility**: Old `use_harmony` parameter still works with deprecation warnings
+
+### Adding New Models
+
+To add support for a new reasoning model, simply update the `reasoning_formats.yaml` file:
+
+```yaml
+families:
+  new-model-family:
+    patterns:
+      - "company/new-model"
+    type: system_prompt  # or harmony, parameter, prefix
+    enable_flag: "/reason"
+    disable_flag: "/no_reason"
+    default_enabled: false
+    description: "New reasoning model using /reason flags"
+```
+
+No code changes required! The system automatically picks up the new configuration.
+
+### Migration from Legacy `use_harmony`
+
+If you're using the old `use_harmony` parameter:
+
+```python
+# Old approach (deprecated)
+backend = VLLMBackend(
+    endpoint="http://localhost:8000/v1",
+    model="openai/gpt-oss-20b",
+    use_harmony=True  # Deprecated
+)
+
+# New approach (recommended)
+backend = VLLMBackend(
+    endpoint="http://localhost:8000/v1",
+    model="openai/gpt-oss-20b"
+    # Formatting auto-detected from model name
+)
+```
+
+The old approach still works but will show deprecation warnings. The `use_harmony` parameter will be removed in v2.0.
+
+### Formatter Architecture
+
+The reasoning format system uses a registry-based architecture:
+
+```
+FormatterRegistry
+├── HarmonyFormatter (gpt-oss models)
+├── SystemPromptFormatter (SmolLM, Hunyuan, Nemotron)
+├── ParameterFormatter (Qwen, EXAONE, DeepSeek)
+└── PrefixFormatter (DeepSeek <think> tag)
+```
+
+Each formatter implements:
+- `format_prompt()`: Modifies the prompt text
+- `get_generation_params()`: Returns additional generation parameters
+
+See `ai_energy_benchmarks/formatters/` for implementation details.
+
 ## Project Structure
 
 ```
@@ -195,7 +340,16 @@ ai_energy_benchmarks/
 │   ├── backends/              # Inference backend implementations
 │   │   ├── vllm.py           # vLLM backend
 │   │   └── pytorch.py        # PyTorch backend
-│   ├── config/               # Configuration parsing
+│   ├── formatters/           # Reasoning format handlers
+│   │   ├── base.py           # Abstract formatter base
+│   │   ├── harmony.py        # Harmony formatter (gpt-oss)
+│   │   ├── system_prompt.py  # System prompt formatter
+│   │   ├── parameter.py      # Parameter-based formatter
+│   │   ├── prefix.py         # Prefix/suffix formatter
+│   │   └── registry.py       # Formatter registry
+│   ├── config/               # Configuration files
+│   │   ├── parser.py         # Config parsing
+│   │   └── reasoning_formats.yaml  # Model format registry
 │   ├── datasets/             # Dataset loaders
 │   ├── metrics/              # Metrics collectors (CodeCarbon)
 │   ├── reporters/            # Result reporters (CSV)
@@ -206,6 +360,7 @@ ai_energy_benchmarks/
 │   ├── pytorch_test.yaml
 │   └── pytorch_validation.yaml
 ├── tests/                    # Test suite
+│   └── test_formatters.py    # Formatter tests
 ├── docs/                     # Documentation
 ├── examples/                 # Example scripts
 ├── results/                  # Benchmark results output

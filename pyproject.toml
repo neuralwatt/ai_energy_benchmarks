@@ -78,11 +78,12 @@ Issues = "https://github.com/neuralwatt/ai_energy_benchmarks/issues"
 
 [tool.setuptools]
 packages = ["ai_energy_benchmarks", "ai_energy_benchmarks.backends", "ai_energy_benchmarks.config",
-            "ai_energy_benchmarks.datasets", "ai_energy_benchmarks.metrics",
-            "ai_energy_benchmarks.reporters", "ai_energy_benchmarks.utils"]
+            "ai_energy_benchmarks.datasets", "ai_energy_benchmarks.formatters",
+            "ai_energy_benchmarks.metrics", "ai_energy_benchmarks.reporters",
+            "ai_energy_benchmarks.utils"]
 
 [tool.setuptools.package-data]
-ai_energy_benchmarks = ["py.typed"]
+ai_energy_benchmarks = ["py.typed", "config/*.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
