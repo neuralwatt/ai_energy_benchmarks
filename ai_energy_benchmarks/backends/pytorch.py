@@ -102,70 +102,113 @@ class PyTorchBackend(Backend):
             return False
 
     def _initialize_model(self):
-        """Initialize model and tokenizer."""
+        """Initialize model and tokenizer with retry logic for network timeouts."""
         if self._initialized:
             return
 
-        try:
-            import torch
-            from transformers import AutoModelForCausalLM, AutoTokenizer
+        import torch
+        from transformers import AutoModelForCausalLM, AutoTokenizer
 
-            print(f"Loading model: {self.model_name}")
-            print(f"Device: {self.device}, Device Map: {self.device_map}")
+        print(f"Loading model: {self.model_name}")
+        print(f"Device: {self.device}, Device Map: {self.device_map}")
 
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name, trust_remote_code=True)
+        # Retry configuration
+        max_retries = 3
+        base_delay = 2  # seconds
+        max_delay = 30  # seconds
 
-            if self.tokenizer.pad_token is None:
-                self.tokenizer.pad_token = self.tokenizer.eos_token
+        # Load tokenizer with retry
+        for attempt in range(max_retries):
+            try:
+                self.tokenizer = AutoTokenizer.from_pretrained(
+                    self.model_name,
+                    trust_remote_code=True,
+                )
+                break
+            except Exception as e:
+                error_str = str(e).lower()
+                is_timeout = "timeout" in error_str or "timed out" in error_str
+                is_network = "connection" in error_str or "network" in error_str
 
-            requested_dtype = self.torch_dtype
-            dtype_map = {
-                "float16": torch.float16,
-                "bfloat16": torch.bfloat16,
-                "float32": torch.float32,
-            }
-
-            requested_torch_dtype: Optional[torch.dtype]
-            if requested_dtype == "auto":
-                requested_torch_dtype = None
-                torch_dtype_param: Any = "auto"
-            else:
-                requested_torch_dtype = dtype_map.get(requested_dtype, torch.float32)
-                torch_dtype_param = requested_torch_dtype
-
-            load_kwargs = {
-                "trust_remote_code": True,
-                "device_map": self.device_map,
-                "torch_dtype": torch_dtype_param,
-            }
-
-            if self.max_memory:
-                load_kwargs["max_memory"] = self.max_memory
-
-            self.model = AutoModelForCausalLM.from_pretrained(self.model_name, **load_kwargs)
-
-            self.model.eval()
-
-            actual_dtype = getattr(self.model, "dtype", None)
-            print(f"Requested torch_dtype: {requested_dtype}")
-            if actual_dtype is not None:
-                print(f"Model dtype in use: {actual_dtype}")
-                if requested_torch_dtype is None:
-                    print("Model dtype was auto-selected.")
-                elif requested_torch_dtype is not None and actual_dtype == requested_torch_dtype:
-                    print("Model dtype matches requested torch_dtype.")
+                if (is_timeout or is_network) and attempt < max_retries - 1:
+                    delay = min(base_delay * (2**attempt), max_delay)
+                    print(f"  Tokenizer loading failed (attempt {attempt + 1}/{max_retries}): {e}")
+                    print(f"  Retrying in {delay}s...")
+                    time.sleep(delay)
                 else:
-                    print("Model dtype differs from requested torch_dtype.")
+                    print(f"Error loading tokenizer: {e}")
+                    raise
+
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+
+        requested_dtype = self.torch_dtype
+        dtype_map = {
+            "float16": torch.float16,
+            "bfloat16": torch.bfloat16,
+            "float32": torch.float32,
+        }
+
+        requested_torch_dtype: Optional[torch.dtype]
+        if requested_dtype == "auto":
+            requested_torch_dtype = None
+            torch_dtype_param: Any = "auto"
+        else:
+            requested_torch_dtype = dtype_map.get(requested_dtype, torch.float32)
+            torch_dtype_param = requested_torch_dtype
+
+        load_kwargs = {
+            "trust_remote_code": True,
+            "device_map": self.device_map,
+            "torch_dtype": torch_dtype_param,
+        }
+
+        if self.max_memory:
+            load_kwargs["max_memory"] = self.max_memory
+
+        # Load model with retry
+        for attempt in range(max_retries):
+            try:
+                self.model = AutoModelForCausalLM.from_pretrained(self.model_name, **load_kwargs)
+                break
+            except Exception as e:
+                error_str = str(e).lower()
+                is_timeout = "timeout" in error_str or "timed out" in error_str
+                is_network = "connection" in error_str or "network" in error_str
+                is_oom = "out of memory" in error_str or "oom" in error_str
+
+                # Don't retry OOM errors
+                if is_oom:
+                    print(f"Error loading model (OOM - not retrying): {e}")
+                    raise
+
+                if (is_timeout or is_network) and attempt < max_retries - 1:
+                    delay = min(base_delay * (2**attempt), max_delay)
+                    print(f"  Model loading failed (attempt {attempt + 1}/{max_retries}): {e}")
+                    print(f"  Retrying in {delay}s...")
+                    time.sleep(delay)
+                else:
+                    print(f"Error loading model: {e}")
+                    raise
+
+        self.model.eval()
+
+        actual_dtype = getattr(self.model, "dtype", None)
+        print(f"Requested torch_dtype: {requested_dtype}")
+        if actual_dtype is not None:
+            print(f"Model dtype in use: {actual_dtype}")
+            if requested_torch_dtype is None:
+                print("Model dtype was auto-selected.")
+            elif requested_torch_dtype is not None and actual_dtype == requested_torch_dtype:
+                print("Model dtype matches requested torch_dtype.")
             else:
-                print("Model dtype could not be determined.")
+                print("Model dtype differs from requested torch_dtype.")
+        else:
+            print("Model dtype could not be determined.")
 
-            self._initialized = True
-            print(f"Model loaded successfully on {self.device}")
-            print(f"Model dtype: {self.model.dtype}")
-
-        except Exception as e:
-            print(f"Error loading model: {e}")
-            raise
+        self._initialized = True
+        print(f"Model loaded successfully on {self.device}")
+        print(f"Model dtype: {self.model.dtype}")
 
     def format_harmony_prompt(self, text: str, reasoning_effort: str = "high") -> str:
         """DEPRECATED: Format a prompt using OpenAI Harmony formatting for gpt-oss models.
@@ -257,38 +300,94 @@ class PyTorchBackend(Backend):
         try:
             import torch
 
-            # Format prompt using registry formatter (new approach)
-            if self.formatter:
-                # Use new formatter from registry
-                prompt = self.formatter.format_prompt(prompt, reasoning_params)
-            elif self._legacy_use_harmony:
-                # DEPRECATED: Legacy Harmony formatting
-                reasoning_effort = "high"  # Default
-                if reasoning_params and "reasoning_effort" in reasoning_params:
-                    reasoning_effort = reasoning_params["reasoning_effort"]
-                prompt = self.format_harmony_prompt(prompt, reasoning_effort)
-                print(f"  Using Harmony format with {reasoning_effort} reasoning")
-                print(f"  Prompt preview (first 200 chars): {prompt[:200]}...")
-            elif reasoning_params and "reasoning_effort" in reasoning_params:
-                # Legacy: simple reasoning prefix (deprecated)
-                effort = reasoning_params["reasoning_effort"]
-                use_prompt_based = reasoning_params.get("use_prompt_based_reasoning", False)
-
-                if use_prompt_based:
-                    # Old format (kept for backward compatibility)
-                    prompt = f"Reasoning:{effort}\n\n{prompt}"
-                    print(f"  Using legacy prompt-based reasoning ({effort} effort)")
-                    print(f"  Prompt preview: {prompt}")
-
-            # Tokenize input
-            tokenized_inputs = self.tokenizer(
-                prompt, return_tensors="pt", padding=True, truncation=True
+            # Check if tokenizer supports chat template
+            has_chat_template = (
+                hasattr(self.tokenizer, "chat_template")
+                and self.tokenizer.chat_template is not None
             )
+
+            # Determine if we should use chat template
+            use_chat_template = (
+                has_chat_template and not self.formatter and not self._legacy_use_harmony
+            )
+
+            if use_chat_template:
+                # Use chat template for models that require it (e.g., Hunyuan, Llama-3, etc.)
+                messages = [{"role": "user", "content": prompt}]
+
+                # Add model-specific chat template parameters
+                chat_kwargs = {"add_generation_prompt": True}
+
+                # Handle Hunyuan thinking mode
+                if "hunyuan" in self.model_name.lower():
+                    # For Hunyuan models, enable_thinking controls CoT reasoning
+                    enable_thinking = True  # Default
+                    if reasoning_params:
+                        # Check for explicit thinking control
+                        if "enable_thinking" in reasoning_params:
+                            enable_thinking = reasoning_params["enable_thinking"]
+                        elif reasoning_params.get("reasoning") is False:
+                            enable_thinking = False
+                    chat_kwargs["enable_thinking"] = enable_thinking
+                    print(
+                        f"  Using Hunyuan chat template (thinking={'enabled' if enable_thinking else 'disabled'})"
+                    )
+                else:
+                    print(f"  Using chat template for {self.model_name}")
+
+                # Apply chat template and tokenize
+                try:
+                    tokenized_inputs = self.tokenizer.apply_chat_template(
+                        messages, tokenize=True, return_tensors="pt", **chat_kwargs
+                    )
+                    # apply_chat_template returns input_ids directly, wrap in dict
+                    if not isinstance(tokenized_inputs, dict):
+                        tokenized_inputs = {"input_ids": tokenized_inputs}
+                except TypeError as e:
+                    # Fallback if model doesn't support certain kwargs
+                    print(f"  Chat template warning: {e}, retrying without extra params")
+                    tokenized_inputs = self.tokenizer.apply_chat_template(
+                        messages, tokenize=True, return_tensors="pt", add_generation_prompt=True
+                    )
+                    if not isinstance(tokenized_inputs, dict):
+                        tokenized_inputs = {"input_ids": tokenized_inputs}
+            else:
+                # Format prompt using registry formatter (new approach)
+                if self.formatter:
+                    # Use new formatter from registry
+                    prompt = self.formatter.format_prompt(prompt, reasoning_params)
+                elif self._legacy_use_harmony:
+                    # DEPRECATED: Legacy Harmony formatting
+                    reasoning_effort = "high"  # Default
+                    if reasoning_params and "reasoning_effort" in reasoning_params:
+                        reasoning_effort = reasoning_params["reasoning_effort"]
+                    prompt = self.format_harmony_prompt(prompt, reasoning_effort)
+                    print(f"  Using Harmony format with {reasoning_effort} reasoning")
+                    print(f"  Prompt preview (first 200 chars): {prompt[:200]}...")
+                elif reasoning_params and "reasoning_effort" in reasoning_params:
+                    # Legacy: simple reasoning prefix (deprecated)
+                    effort = reasoning_params["reasoning_effort"]
+                    use_prompt_based = reasoning_params.get("use_prompt_based_reasoning", False)
+
+                    if use_prompt_based:
+                        # Old format (kept for backward compatibility)
+                        prompt = f"Reasoning:{effort}\n\n{prompt}"
+                        print(f"  Using legacy prompt-based reasoning ({effort} effort)")
+                        print(f"  Prompt preview: {prompt}")
+
+                # Tokenize input (standard path)
+                tokenized_inputs = self.tokenizer(
+                    prompt, return_tensors="pt", padding=True, truncation=True
+                )
 
             inputs: Dict[str, Any] = dict(tokenized_inputs)
 
             if self.device == "cuda":
                 inputs = {k: v.cuda() for k, v in inputs.items()}
+
+            # Filter out token_type_ids if present (some models like Hunyuan don't support it)
+            if "token_type_ids" in inputs:
+                inputs.pop("token_type_ids")
 
             prompt_tokens = inputs["input_ids"].shape[1]
 
@@ -379,6 +478,8 @@ class PyTorchBackend(Backend):
                             "thinking_budget",
                             "cot_depth",
                             "use_prompt_based_reasoning",
+                            "enable_thinking",
+                            "reasoning",
                         ]
                         filtered_kwargs = {
                             k: v for k, v in gen_kwargs.items() if k not in reasoning_keys
@@ -406,6 +507,33 @@ class PyTorchBackend(Backend):
                 effort = reasoning_params.get("reasoning_effort", "unknown")
                 print(f"    Generated {completion_tokens} tokens ({effort} effort)")
                 print(f"    Full text: {generated_text}, Total tokens: {total_tokens}")
+
+            # Detect and warn about zero-token generation
+            if completion_tokens == 0:
+                warning_msg = (
+                    f"WARNING: Model generated 0 tokens. "
+                    f"This may indicate:\n"
+                    f"  - Incorrect prompt formatting (chat template issue)\n"
+                    f"  - Model immediately generated EOS token\n"
+                    f"  - Input was truncated to empty\n"
+                    f"  Prompt preview: {prompt_text[:200]}...\n"
+                    f"  Generated text: '{generated_text}'"
+                )
+                print(warning_msg)
+
+                # Return as failure with detailed error message
+                return {
+                    "text": completion_text,
+                    "full_text": generated_text,
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                    "total_tokens": total_tokens,
+                    "latency_seconds": end_time - start_time,
+                    "model": self.model_name,
+                    "success": False,  # Mark as failure
+                    "error": "Zero tokens generated - likely chat template or formatting issue",
+                }
+
             return {
                 "text": completion_text,
                 "full_text": generated_text,
@@ -420,10 +548,20 @@ class PyTorchBackend(Backend):
 
         except Exception as e:
             end_time = time.time()
+            error_msg = str(e)
+
+            # Log detailed error information
+            print(f"ERROR during inference: {error_msg}")
+            print(f"  Exception type: {type(e).__name__}")
+            if hasattr(e, "__traceback__"):
+                import traceback
+
+                print(f"  Traceback: {traceback.format_exc()}")
+
             return {
                 "text": "",
                 "success": False,
-                "error": str(e),
+                "error": error_msg,
                 "latency_seconds": end_time - start_time,
             }
 
