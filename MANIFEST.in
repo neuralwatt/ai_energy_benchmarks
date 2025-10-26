@@ -1,0 +1,20 @@
+# Package metadata files
+include README.md
+include LICENSE
+include VERSION.txt
+include pyproject.toml
+
+# Configuration files
+recursive-include ai_energy_benchmarks/config *.yaml
+
+# Python source files
+recursive-include ai_energy_benchmarks *.py
+
+# Type hints marker
+recursive-include ai_energy_benchmarks py.typed
+
+# Exclude compiled files and caches
+global-exclude *.pyc
+global-exclude *.pyo
+global-exclude __pycache__
+global-exclude *.so
