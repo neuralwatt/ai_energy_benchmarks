@@ -275,6 +275,7 @@ class PyTorchBackend(Backend):
         top_p: float = 0.9,
         top_k: int = 50,
         reasoning_params: Optional[Dict[str, Any]] = None,
+        enable_streaming: bool = False,  # Disabled by default to avoid hangs
         **kwargs,
     ) -> Dict[str, Any]:
         """Run inference on a single prompt.
@@ -286,16 +287,18 @@ class PyTorchBackend(Backend):
             top_p: Nucleus sampling parameter
             top_k: Top-k sampling parameter
             reasoning_params: Optional reasoning parameters for thinking models
+            enable_streaming: Enable streaming for TTFT tracking (default: True)
             **kwargs: Additional generation parameters
 
         Returns:
-            Dict with response text and metadata
+            Dict with response text and metadata (includes time_to_first_token if streaming enabled)
         """
         # Initialize model if needed
         if not self._initialized:
             self._initialize_model()
 
         start_time = time.time()
+        ttft: Optional[float] = None
 
         try:
             import torch
@@ -307,19 +310,55 @@ class PyTorchBackend(Backend):
             )
 
             # Determine if we should use chat template
+            # Special handling for different model types:
+            # - Qwen/Hunyuan: Use chat template with enable_thinking parameter
+            # - gpt-oss: Use HarmonyFormatter (self.formatter is set)
+            # - Others with chat template but no formatter: Use chat template
+            is_qwen = "qwen" in self.model_name.lower()
+            is_hunyuan = "hunyuan" in self.model_name.lower()
+
+            # Use chat template if:
+            # 1. Model has chat template AND
+            # 2. (No formatter assigned OR model is Qwen/Hunyuan which need chat template)
             use_chat_template = (
-                has_chat_template and not self.formatter and not self._legacy_use_harmony
+                has_chat_template
+                and not self._legacy_use_harmony
+                and (not self.formatter or is_qwen or is_hunyuan)
             )
 
             if use_chat_template:
-                # Use chat template for models that require it (e.g., Hunyuan, Llama-3, etc.)
+                # Use chat template for models that require it (e.g., Qwen, Hunyuan, Llama-3, etc.)
                 messages = [{"role": "user", "content": prompt}]
 
                 # Add model-specific chat template parameters
                 chat_kwargs = {"add_generation_prompt": True}
 
+                # Handle Qwen thinking mode
+                if "qwen" in self.model_name.lower():
+                    # For Qwen models, enable_thinking is passed to chat template
+                    # Default depends on model type:
+                    # - Qwen3 mixed models: True by default
+                    # - Thinking-only models: always enabled (parameter ignored)
+                    enable_thinking = True  # Default
+                    if reasoning_params:
+                        # Check for explicit thinking control
+                        if "enable_thinking" in reasoning_params:
+                            # Handle string "true"/"false" from config
+                            val = reasoning_params["enable_thinking"]
+                            enable_thinking = (
+                                val if isinstance(val, bool) else str(val).lower() == "true"
+                            )
+                        elif "reasoning" in reasoning_params:
+                            val = reasoning_params["reasoning"]
+                            enable_thinking = (
+                                val if isinstance(val, bool) else str(val).lower() == "true"
+                            )
+                    chat_kwargs["enable_thinking"] = enable_thinking
+                    print(
+                        f"  Using Qwen chat template (thinking={'enabled' if enable_thinking else 'disabled'})"
+                    )
                 # Handle Hunyuan thinking mode
-                if "hunyuan" in self.model_name.lower():
+                elif "hunyuan" in self.model_name.lower():
                     # For Hunyuan models, enable_thinking controls CoT reasoning
                     enable_thinking = True  # Default
                     if reasoning_params:
@@ -337,12 +376,16 @@ class PyTorchBackend(Backend):
 
                 # Apply chat template and tokenize
                 try:
+                    print(f"  Applying chat template with kwargs: {chat_kwargs}")
                     tokenized_inputs = self.tokenizer.apply_chat_template(
                         messages, tokenize=True, return_tensors="pt", **chat_kwargs
                     )
                     # apply_chat_template returns input_ids directly, wrap in dict
                     if not isinstance(tokenized_inputs, dict):
                         tokenized_inputs = {"input_ids": tokenized_inputs}
+                    print(
+                        f"  Chat template applied successfully, input shape: {tokenized_inputs['input_ids'].shape}"
+                    )
                 except TypeError as e:
                     # Fallback if model doesn't support certain kwargs
                     print(f"  Chat template warning: {e}, retrying without extra params")
@@ -351,6 +394,9 @@ class PyTorchBackend(Backend):
                     )
                     if not isinstance(tokenized_inputs, dict):
                         tokenized_inputs = {"input_ids": tokenized_inputs}
+                    print(
+                        f"  Fallback chat template applied, input shape: {tokenized_inputs['input_ids'].shape}"
+                    )
             else:
                 # Format prompt using registry formatter (new approach)
                 if self.formatter:
@@ -450,57 +496,217 @@ class PyTorchBackend(Backend):
             # Merge additional kwargs
             gen_kwargs.update(kwargs)
 
-            # Generate
-            with torch.no_grad():
+            # Generate with streaming for TTFT tracking
+            generated_text: str
+            completion_text: str
+            completion_tokens: int
+            total_tokens: int
+
+            if enable_streaming:
+                # Use TextIteratorStreamer for accurate TTFT tracking
                 try:
-                    outputs = self.model.generate(**inputs, **gen_kwargs)
-                except (TypeError, ValueError) as e:
-                    error_msg = str(e)
-                    # Check if error is about unused model_kwargs (model doesn't support reasoning params)
-                    if (
-                        "model_kwargs" in error_msg
-                        or "unexpected keyword argument" in error_msg
-                        or "not used by the model" in error_msg
-                    ):
-                        # Model doesn't support reasoning parameters, retry without them
-                        # Note: We don't print this message when using prompt-based reasoning
-                        # because the reasoning is in the prompt, not the parameters
-                        if not (
-                            reasoning_params and reasoning_params.get("use_prompt_based_reasoning")
+                    from threading import Thread
+
+                    from transformers import TextIteratorStreamer
+
+                    # Try streaming generation with reasoning parameters
+                    streamer = TextIteratorStreamer(
+                        self.tokenizer, skip_prompt=True, skip_special_tokens=True
+                    )
+                    generation_kwargs = {**inputs, **gen_kwargs, "streamer": streamer}
+
+                    # Wrapper to capture exceptions in thread
+                    thread_exception = None
+
+                    def generation_target():
+                        nonlocal thread_exception
+                        try:
+                            self.model.generate(**generation_kwargs)
+                        except Exception as e:
+                            thread_exception = e
+
+                    # Start generation in a separate thread
+                    thread = Thread(target=generation_target)
+                    thread.start()
+
+                    # Collect generated tokens and measure TTFT
+                    generated_tokens = []
+                    first_token = True
+
+                    for new_text in streamer:
+                        if first_token and new_text:
+                            ttft = time.time() - start_time
+                            first_token = False
+                        generated_tokens.append(new_text)
+
+                    thread.join()
+
+                    # Check if thread raised an exception
+                    if thread_exception is not None:
+                        error_msg = str(thread_exception)
+                        # Check if error is about reasoning parameters
+                        if isinstance(thread_exception, (TypeError, ValueError)) and (
+                            "model_kwargs" in error_msg
+                            or "unexpected keyword argument" in error_msg
+                            or "not used by the model" in error_msg
                         ):
+                            # Model doesn't support reasoning parameters, retry without them
                             print(
-                                "  Note: Model doesn't support reasoning parameters, running without them"
+                                "  Note: Model doesn't support reasoning parameters, retrying without them"
                             )
 
-                        # Remove known reasoning-related parameters
-                        reasoning_keys = [
-                            "reasoning_effort",
-                            "thinking_budget",
-                            "cot_depth",
-                            "use_prompt_based_reasoning",
-                            "enable_thinking",
-                            "reasoning",
-                        ]
-                        filtered_kwargs = {
-                            k: v for k, v in gen_kwargs.items() if k not in reasoning_keys
-                        }
+                            # Remove known reasoning-related parameters
+                            reasoning_keys = [
+                                "reasoning_effort",
+                                "thinking_budget",
+                                "cot_depth",
+                                "use_prompt_based_reasoning",
+                                "enable_thinking",
+                                "reasoning",
+                            ]
+                            filtered_kwargs = {
+                                k: v for k, v in gen_kwargs.items() if k not in reasoning_keys
+                            }
 
-                        outputs = self.model.generate(**inputs, **filtered_kwargs)
-                    else:
-                        # Different error, re-raise
-                        raise
+                            # Retry with filtered parameters
+                            streamer = TextIteratorStreamer(
+                                self.tokenizer, skip_prompt=True, skip_special_tokens=True
+                            )
+                            generation_kwargs = {**inputs, **filtered_kwargs, "streamer": streamer}
+                            thread = Thread(target=self.model.generate, kwargs=generation_kwargs)
+                            thread.start()
 
-            # Decode output
-            generated_text = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+                            generated_tokens = []
+                            first_token = True
+                            for new_text in streamer:
+                                if first_token and new_text:
+                                    ttft = time.time() - start_time
+                                    first_token = False
+                                generated_tokens.append(new_text)
+                            thread.join()
+                        else:
+                            # Different error, re-raise
+                            raise thread_exception
 
-            # Extract only the generated portion (remove prompt)
-            prompt_text = self.tokenizer.decode(inputs["input_ids"][0], skip_special_tokens=True)
-            completion_text = generated_text[len(prompt_text) :].strip()
+                    completion_text = "".join(generated_tokens)
 
-            completion_tokens = outputs.shape[1] - prompt_tokens
-            total_tokens = outputs.shape[1]
+                    # Get the full output for token counting
+                    # Re-run without streamer to get output tensor (needed for accurate token counts)
+                    with torch.no_grad():
+                        try:
+                            outputs = self.model.generate(**inputs, **gen_kwargs)
+                        except (TypeError, ValueError) as e:
+                            error_msg = str(e)
+                            # Check if error is about unused model_kwargs (model doesn't support reasoning params)
+                            if (
+                                "model_kwargs" in error_msg
+                                or "unexpected keyword argument" in error_msg
+                                or "not used by the model" in error_msg
+                            ):
+                                # Model doesn't support reasoning parameters, retry without them
+                                if not (
+                                    reasoning_params
+                                    and reasoning_params.get("use_prompt_based_reasoning")
+                                ):
+                                    print(
+                                        "  Note: Model doesn't support reasoning parameters, running without them"
+                                    )
+
+                                # Remove known reasoning-related parameters
+                                reasoning_keys = [
+                                    "reasoning_effort",
+                                    "thinking_budget",
+                                    "cot_depth",
+                                    "use_prompt_based_reasoning",
+                                    "enable_thinking",
+                                    "reasoning",
+                                ]
+                                filtered_kwargs = {
+                                    k: v for k, v in gen_kwargs.items() if k not in reasoning_keys
+                                }
+
+                                outputs = self.model.generate(**inputs, **filtered_kwargs)
+                            else:
+                                # Different error, re-raise
+                                raise
+
+                    generated_text = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+                    completion_tokens = outputs.shape[1] - prompt_tokens
+                    total_tokens = outputs.shape[1]
+
+                except (ImportError, Exception) as e:
+                    # Fallback to non-streaming if TextIteratorStreamer is not available
+                    print(
+                        f"  Streaming not available ({type(e).__name__}), using standard generation"
+                    )
+                    enable_streaming = False
+
+            if not enable_streaming:
+                # Standard non-streaming generation
+                with torch.no_grad():
+                    try:
+                        outputs = self.model.generate(**inputs, **gen_kwargs)
+                    except (TypeError, ValueError) as e:
+                        error_msg = str(e)
+                        # Check if error is about unused model_kwargs (model doesn't support reasoning params)
+                        if (
+                            "model_kwargs" in error_msg
+                            or "unexpected keyword argument" in error_msg
+                            or "not used by the model" in error_msg
+                        ):
+                            # Model doesn't support reasoning parameters, retry without them
+                            # Note: We don't print this message when using prompt-based reasoning
+                            # because the reasoning is in the prompt, not the parameters
+                            if not (
+                                reasoning_params
+                                and reasoning_params.get("use_prompt_based_reasoning")
+                            ):
+                                print(
+                                    "  Note: Model doesn't support reasoning parameters, running without them"
+                                )
+
+                            # Remove known reasoning-related parameters
+                            reasoning_keys = [
+                                "reasoning_effort",
+                                "thinking_budget",
+                                "cot_depth",
+                                "use_prompt_based_reasoning",
+                                "enable_thinking",
+                                "reasoning",
+                            ]
+                            filtered_kwargs = {
+                                k: v for k, v in gen_kwargs.items() if k not in reasoning_keys
+                            }
+
+                            outputs = self.model.generate(**inputs, **filtered_kwargs)
+                        else:
+                            # Different error, re-raise
+                            raise
+
+                # Decode output
+                generated_text = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+                completion_tokens = outputs.shape[1] - prompt_tokens
+                total_tokens = outputs.shape[1]
+
+            # Extract only the generated portion (remove prompt) for non-streaming path
+            if not enable_streaming or completion_text is None:
+                prompt_text = self.tokenizer.decode(
+                    inputs["input_ids"][0], skip_special_tokens=True
+                )
+                completion_text = generated_text[len(prompt_text) :].strip()
 
             end_time = time.time()
+
+            # For non-streaming, estimate TTFT based on generation time and token count
+            # This is an approximation: total_time / total_tokens ≈ time_per_token
+            if ttft is None and completion_tokens > 0:
+                generation_time = end_time - start_time
+                # Estimate TTFT as the time to generate first token
+                # Assume roughly linear generation rate
+                ttft = generation_time / completion_tokens
+                print(
+                    f"  Estimated TTFT: {ttft:.4f}s (non-streaming mode, {completion_tokens} tokens)"
+                )
 
             # Debug: log token generation stats when reasoning is enabled
             if reasoning_params:
@@ -529,22 +735,26 @@ class PyTorchBackend(Backend):
                     "completion_tokens": completion_tokens,
                     "total_tokens": total_tokens,
                     "latency_seconds": end_time - start_time,
+                    "time_to_first_token": ttft,
                     "model": self.model_name,
                     "success": False,  # Mark as failure
                     "error": "Zero tokens generated - likely chat template or formatting issue",
                 }
 
-            return {
+            result = {
                 "text": completion_text,
                 "full_text": generated_text,
                 "prompt_tokens": prompt_tokens,
                 "completion_tokens": completion_tokens,
                 "total_tokens": total_tokens,
                 "latency_seconds": end_time - start_time,
+                "time_to_first_token": ttft,
                 "model": self.model_name,
                 "success": True,
                 "error": None,
             }
+            print(f"  DEBUG: Returning result with TTFT={ttft}")
+            return result
 
         except Exception as e:
             end_time = time.time()
@@ -563,6 +773,7 @@ class PyTorchBackend(Backend):
                 "success": False,
                 "error": error_msg,
                 "latency_seconds": end_time - start_time,
+                "time_to_first_token": None,
             }
 
     def cleanup(self):

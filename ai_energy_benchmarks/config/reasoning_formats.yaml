@@ -43,12 +43,14 @@ families:
       "deepseek.*parameter":
         type: parameter
 
-  # Qwen models (Parameter-based)
+  # Qwen models (Chat template-based)
+  # NOTE: Qwen models use enable_thinking via chat template, not generate() params
+  # The PyTorch backend handles this specially in the use_chat_template path
   qwen:
     patterns:
       - "qwen"
-    type: parameter
-    description: "Qwen models using enable_thinking parameter"
+    type: null
+    description: "Qwen models use enable_thinking via tokenizer.apply_chat_template()"
 
   # Hunyuan models (System prompt)
   hunyuan:

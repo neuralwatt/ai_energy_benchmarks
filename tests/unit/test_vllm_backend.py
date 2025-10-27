@@ -60,7 +60,7 @@ class TestVLLMBackend:
         mock_post.return_value = mock_response
 
         backend = VLLMBackend(endpoint="http://localhost:8000", model="test-model")
-        result = backend.run_inference("test prompt")
+        result = backend.run_inference("test prompt", enable_streaming=False)
 
         assert result["success"] is True
         assert result["text"] == "test response"
@@ -87,3 +87,63 @@ class TestVLLMBackend:
         assert info["backend"] == "vllm"
         assert info["model"] == "test-model"
         assert info["endpoint"] == "http://localhost:8000"
+
+    @patch("ai_energy_benchmarks.backends.vllm.requests.post")
+    def test_run_inference_with_streaming_ttft(self, mock_post):
+        """Test inference with streaming to capture TTFT."""
+        # Mock SSE streaming response
+        mock_response = Mock()
+        mock_response.status_code = 200
+
+        # Simulate SSE stream with multiple chunks
+        sse_lines = [
+            b'data: {"choices":[{"delta":{"content":"Hello"}}],"usage":{}}',
+            b'data: {"choices":[{"delta":{"content":" world"}}],"usage":{}}',
+            b'data: {"choices":[{"delta":{"content":"!"}}],"usage":{"prompt_tokens":10,"completion_tokens":3,"total_tokens":13}}',
+            b"data: [DONE]",
+        ]
+        mock_response.iter_lines.return_value = iter(sse_lines)
+        mock_post.return_value = mock_response
+
+        backend = VLLMBackend(endpoint="http://localhost:8000", model="test-model")
+        result = backend.run_inference("test prompt", enable_streaming=True)
+
+        assert result["success"] is True
+        assert result["text"] == "Hello world!"
+        assert result["time_to_first_token"] is not None
+        assert result["time_to_first_token"] > 0
+        assert result["total_tokens"] == 13
+
+    @patch("ai_energy_benchmarks.backends.vllm.requests.post")
+    def test_run_inference_non_streaming_no_ttft(self, mock_post):
+        """Test non-streaming inference returns None for TTFT."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "choices": [{"message": {"content": "test response"}}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
+        }
+        mock_post.return_value = mock_response
+
+        backend = VLLMBackend(endpoint="http://localhost:8000", model="test-model")
+        result = backend.run_inference("test prompt", enable_streaming=False)
+
+        assert result["success"] is True
+        assert result["text"] == "test response"
+        assert result["time_to_first_token"] is None
+
+    @patch("ai_energy_benchmarks.backends.vllm.requests.post")
+    def test_run_inference_streaming_error_handling(self, mock_post):
+        """Test error handling during streaming."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        # Simulate malformed SSE stream
+        mock_response.iter_lines.return_value = iter([b"invalid json", b"data: [DONE]"])
+        mock_post.return_value = mock_response
+
+        backend = VLLMBackend(endpoint="http://localhost:8000", model="test-model")
+        result = backend.run_inference("test prompt", enable_streaming=True)
+
+        # Should still succeed but with empty content
+        assert result["success"] is True
+        assert result["text"] == ""

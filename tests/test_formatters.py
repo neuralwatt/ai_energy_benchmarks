@@ -194,9 +194,11 @@ class TestFormatterRegistry:
         assert isinstance(formatter, PrefixFormatter)
 
     def test_get_qwen_formatter(self):
+        """Qwen models now use chat template (type: null in config), not ParameterFormatter."""
         registry = FormatterRegistry()
         formatter = registry.get_formatter("Qwen/Qwen-2.5")
-        assert isinstance(formatter, ParameterFormatter)
+        # Qwen models should NOT have a formatter (they use chat template with enable_thinking)
+        assert formatter is None
 
     def test_get_phi_formatter(self):
         registry = FormatterRegistry()

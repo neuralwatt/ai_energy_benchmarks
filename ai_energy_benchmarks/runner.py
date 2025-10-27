@@ -193,6 +193,9 @@ class BenchmarkRunner:
         if backend is None:
             raise RuntimeError("Backend not initialized")
 
+        consecutive_failures = 0
+        max_consecutive_failures = 3  # Fail fast after 3 consecutive failures
+
         for i, prompt in enumerate(prompts):
             prompt_start = time.time()
             print(f"  Processing prompt {i + 1}/{len(prompts)}...", flush=True)
@@ -201,7 +204,35 @@ class BenchmarkRunner:
             inference_results.append(result)
 
             prompt_time = time.time() - prompt_start
-            print(f"    Completed in {prompt_time:.1f}s", flush=True)
+
+            # Check for failures and implement fail-fast logic
+            if not result.get("success", False):
+                consecutive_failures += 1
+                error_msg = result.get("error", "Unknown error")
+                print(f"    FAILED in {prompt_time:.1f}s: {error_msg}", flush=True)
+
+                # Fail fast if we hit too many consecutive failures
+                if consecutive_failures >= max_consecutive_failures:
+                    print(
+                        f"\n{'=' * 70}\n"
+                        f"ERROR: {consecutive_failures} consecutive failures detected.\n"
+                        f"Stopping benchmark early to avoid wasting resources.\n"
+                        f"Last error: {error_msg}\n"
+                        f"{'=' * 70}\n",
+                        flush=True,
+                    )
+                    # Clean up and exit
+                    if collector is not None:
+                        print("Stopping metrics collection...")
+                        collector.stop()
+                    raise RuntimeError(
+                        f"Benchmark failed: {consecutive_failures} consecutive inference failures. "
+                        f"Last error: {error_msg}"
+                    )
+            else:
+                # Reset counter on success
+                consecutive_failures = 0
+                print(f"    Completed in {prompt_time:.1f}s", flush=True)
 
         end_time = time.time()
         print(f"\nInference completed in {end_time - start_time:.2f} seconds")
@@ -273,6 +304,18 @@ class BenchmarkRunner:
             else 0
         )
 
+        # Calculate average TTFT (Time to First Token)
+        ttft_values_raw = [
+            r.get("time_to_first_token")
+            for r in successful
+            if r.get("time_to_first_token") is not None
+        ]
+        print(f"DEBUG: TTFT raw values: {ttft_values_raw}")
+        ttft_values = [float(v) for v in ttft_values_raw if v is not None]
+        print(f"DEBUG: TTFT float values: {ttft_values}")
+        avg_ttft = sum(ttft_values) / len(ttft_values) if ttft_values else 0.0
+        print(f"DEBUG: Average TTFT: {avg_ttft}")
+
         # Process GPU stats for reporting
         gpu_stats_summary = {}
         for gpu_id, stats in gpu_stats.items():
@@ -301,6 +344,7 @@ class BenchmarkRunner:
                 "failed_prompts": len(failed),
                 "total_duration_seconds": total_duration,
                 "avg_latency_seconds": avg_latency,
+                "avg_time_to_first_token": avg_ttft,
                 "total_tokens": total_tokens,
                 "total_prompt_tokens": total_prompt_tokens,
                 "total_completion_tokens": total_completion_tokens,

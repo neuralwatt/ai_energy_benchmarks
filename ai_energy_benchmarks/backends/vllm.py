@@ -136,6 +136,7 @@ class VLLMBackend(Backend):
         max_tokens: int = 100,
         temperature: float = 0.7,
         reasoning_params: Optional[Dict[str, Any]] = None,
+        enable_streaming: bool = True,
         **kwargs,
     ) -> Dict[str, Any]:
         """Run inference on a single prompt via vLLM OpenAI-compatible API.
@@ -145,12 +146,14 @@ class VLLMBackend(Backend):
             max_tokens: Maximum tokens to generate
             temperature: Sampling temperature
             reasoning_params: Optional reasoning parameters for thinking models
+            enable_streaming: Enable streaming for TTFT tracking (default: True)
             **kwargs: Additional generation parameters
 
         Returns:
-            Dict with response text and metadata
+            Dict with response text and metadata (includes time_to_first_token if streaming enabled)
         """
         start_time = time.time()
+        ttft: Optional[float] = None
 
         # Format prompt using registry formatter (new approach)
         formatted_prompt = prompt
@@ -173,6 +176,7 @@ class VLLMBackend(Backend):
             "messages": [{"role": "user", "content": formatted_prompt}],
             "max_tokens": max_tokens,
             "temperature": temperature,
+            "stream": enable_streaming,  # Enable streaming for TTFT
         }
 
         # Add formatter-provided parameters
@@ -202,32 +206,97 @@ class VLLMBackend(Backend):
         payload.update(kwargs)
 
         try:
-            response = requests.post(
-                f"{self.endpoint}/v1/chat/completions", json=payload, timeout=self.timeout
-            )
-            response.raise_for_status()
+            if enable_streaming:
+                # Streaming path for TTFT tracking
+                import json
 
-            result = response.json()
-            end_time = time.time()
+                response = requests.post(
+                    f"{self.endpoint}/v1/chat/completions",
+                    json=payload,
+                    timeout=self.timeout,
+                    stream=True,
+                )
+                response.raise_for_status()
 
-            # Extract response data
-            choice = result.get("choices", [{}])[0]
-            message = choice.get("message", {})
-            completion_text = message.get("content", "")
+                completion_text = ""
+                first_chunk = True
+                usage_data: Dict[str, Any] = {}
 
-            # Extract usage stats
-            usage = result.get("usage", {})
+                # Process SSE stream
+                for line in response.iter_lines():
+                    if not line:
+                        continue
 
-            return {
-                "text": completion_text,
-                "prompt_tokens": usage.get("prompt_tokens", 0),
-                "completion_tokens": usage.get("completion_tokens", 0),
-                "total_tokens": usage.get("total_tokens", 0),
-                "latency_seconds": end_time - start_time,
-                "model": self.model,
-                "success": True,
-                "error": None,
-            }
+                    # Parse SSE format: "data: {...}"
+                    if line.startswith(b"data: "):
+                        if line == b"data: [DONE]":
+                            break
+
+                        try:
+                            data = json.loads(line[6:])  # Skip "data: " prefix
+
+                            # Capture TTFT on first chunk with content
+                            if first_chunk:
+                                delta = data.get("choices", [{}])[0].get("delta", {})
+                                content = delta.get("content", "")
+                                if content:
+                                    ttft = time.time() - start_time
+                                    first_chunk = False
+
+                            # Extract delta content
+                            delta = data.get("choices", [{}])[0].get("delta", {})
+                            content = delta.get("content", "")
+                            completion_text += content
+
+                            # Capture usage stats if available
+                            if "usage" in data:
+                                usage_data = data["usage"]
+
+                        except json.JSONDecodeError:
+                            continue
+
+                end_time = time.time()
+
+                return {
+                    "text": completion_text,
+                    "prompt_tokens": usage_data.get("prompt_tokens", 0),
+                    "completion_tokens": usage_data.get("completion_tokens", 0),
+                    "total_tokens": usage_data.get("total_tokens", 0),
+                    "latency_seconds": end_time - start_time,
+                    "time_to_first_token": ttft,
+                    "model": self.model,
+                    "success": True,
+                    "error": None,
+                }
+            else:
+                # Non-streaming path (legacy)
+                response = requests.post(
+                    f"{self.endpoint}/v1/chat/completions", json=payload, timeout=self.timeout
+                )
+                response.raise_for_status()
+
+                result = response.json()
+                end_time = time.time()
+
+                # Extract response data
+                choice = result.get("choices", [{}])[0]
+                message = choice.get("message", {})
+                completion_text = message.get("content", "")
+
+                # Extract usage stats
+                usage = result.get("usage", {})
+
+                return {
+                    "text": completion_text,
+                    "prompt_tokens": usage.get("prompt_tokens", 0),
+                    "completion_tokens": usage.get("completion_tokens", 0),
+                    "total_tokens": usage.get("total_tokens", 0),
+                    "latency_seconds": end_time - start_time,
+                    "time_to_first_token": None,
+                    "model": self.model,
+                    "success": True,
+                    "error": None,
+                }
 
         except requests.exceptions.Timeout:
             return {
@@ -235,6 +304,7 @@ class VLLMBackend(Backend):
                 "success": False,
                 "error": "Request timeout",
                 "latency_seconds": time.time() - start_time,
+                "time_to_first_token": None,
             }
         except Exception as e:
             return {
@@ -242,4 +312,5 @@ class VLLMBackend(Backend):
                 "success": False,
                 "error": str(e),
                 "latency_seconds": time.time() - start_time,
+                "time_to_first_token": None,
             }
