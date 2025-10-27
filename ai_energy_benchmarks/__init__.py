@@ -3,7 +3,7 @@
 A modular benchmarking framework for AI energy measurements.
 """
 
-__version__ = "0.0.1rc1"
+__version__ = "0.0.2"
 __author__ = "Neuralwatt"
 __license__ = "MIT"
 

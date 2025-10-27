@@ -17,8 +17,8 @@ echo ""
 
 # Step 2: Verify wheel exists
 echo "Step 2: Verifying wheel artifacts..."
-if [ -f "dist/ai_energy_benchmarks-0.0.1-py3-none-any.whl" ]; then
-    echo "✓ Wheel found: dist/ai_energy_benchmarks-0.0.1-py3-none-any.whl"
+if [ -f "dist/ai_energy_benchmarks-0.0.2-py3-none-any.whl" ]; then
+    echo "✓ Wheel found: dist/ai_energy_benchmarks-0.0.2-py3-none-any.whl"
     ls -lh dist/
 else
     echo "✗ Wheel not found!"
