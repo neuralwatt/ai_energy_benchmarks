@@ -336,17 +336,17 @@ class TestREADMECSVOutputFormat:
             # Read and verify headers
             with open(temp_path) as f:
                 lines = f.readlines()
-                assert (
-                    len(lines) >= 2
-                ), f"CSV should have header and at least one data row. Found {len(lines)} lines"
+                assert len(lines) >= 2, (
+                    f"CSV should have header and at least one data row. Found {len(lines)} lines"
+                )
                 header_line = lines[0].strip()
                 headers = header_line.split(",")
 
             # Verify key headers are present
             for expected_header in expected_headers:
-                assert (
-                    expected_header in headers
-                ), f"Missing header: {expected_header}. Found: {headers}"
+                assert expected_header in headers, (
+                    f"Missing header: {expected_header}. Found: {headers}"
+                )
 
 
 class TestREADMEEnvironmentVariables:
