@@ -753,7 +753,6 @@ class PyTorchBackend(Backend):
                 "success": True,
                 "error": None,
             }
-            print(f"  DEBUG: Returning result with TTFT={ttft}")
             return result
 
         except Exception as e:

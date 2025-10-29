@@ -310,11 +310,8 @@ class BenchmarkRunner:
             for r in successful
             if r.get("time_to_first_token") is not None
         ]
-        print(f"DEBUG: TTFT raw values: {ttft_values_raw}")
         ttft_values = [float(v) for v in ttft_values_raw if v is not None]
-        print(f"DEBUG: TTFT float values: {ttft_values}")
         avg_ttft = sum(ttft_values) / len(ttft_values) if ttft_values else 0.0
-        print(f"DEBUG: Average TTFT: {avg_ttft}")
 
         # Process GPU stats for reporting
         gpu_stats_summary = {}
