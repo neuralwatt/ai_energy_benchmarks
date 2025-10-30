@@ -131,3 +131,15 @@ warn_unused_configs = true
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
 check_untyped_defs = true
+
+# Ignore missing imports for optional dependencies
+[[tool.mypy.overrides]]
+module = [
+    "torch",
+    "torch.*",
+    "transformers",
+    "transformers.*",
+    "accelerate",
+    "accelerate.*",
+]
+ignore_missing_imports = true
