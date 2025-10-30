@@ -1,0 +1,38 @@
+# POC Configuration for gpt-oss-120b on NVIDIA Pro 6000
+# Follows optimum-benchmark Hydra format
+
+name: gpt_oss_120b_poc
+
+backend:
+  type: vllm
+  device: cuda
+  device_ids: [0]
+  model: openai/gpt-oss-120b
+  task: text-generation
+  endpoint: "http://localhost:8000/v1"
+
+scenario:
+  dataset_name: AIEnergyScore/text_generation
+  text_column_name: text
+  num_samples: 10  # Small set for POC
+  truncation: true
+  reasoning: false
+  input_shapes:
+    batch_size: 1
+  generate_kwargs:
+    max_new_tokens: 100
+    min_new_tokens: 50
+
+metrics:
+  type: codecarbon
+  enabled: true
+  project_name: "gpt_oss_120b_poc"
+  output_dir: "./emissions"
+  country_iso_code: "USA"
+  region: null  # Set to your region if available
+
+reporter:
+  type: csv
+  output_file: "./results/gpt_oss_120b_results.csv"
+
+output_dir: ./benchmark_output

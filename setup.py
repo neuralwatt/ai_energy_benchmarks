@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 # Read the version from the VERSION file
 with open("VERSION.txt") as version_file:

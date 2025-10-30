@@ -1,0 +1,56 @@
+name: AI Energy Benchmarks CI
+
+on:
+  push:
+    branches:
+      - main
+      - ppe
+  pull_request:
+    branches:
+      - main
+      - ppe
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt', '**/pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+
+    - name: Run ruff check
+      run: ruff check .
+
+    - name: Run black check
+      run: black --check .
+
+    - name: Run mypy type checking
+      run: mypy ai_energy_benchmarks/
+
+    - name: Run pytest (unit tests only)
+      run: pytest -v -m "not integration and not e2e"
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: pytest-results
+        path: htmlcov/

@@ -1,0 +1,6 @@
+# When using ai_energy_benchmarks in other Docker builds,
+# only copy the dist/ directory
+
+*
+!dist/
+!dist/*.whl

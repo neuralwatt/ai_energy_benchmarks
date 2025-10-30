@@ -1,0 +1,37 @@
+# PyTorch Backend Test Configuration
+# Uses a smaller model for testing
+
+name: pytorch_backend_test
+
+backend:
+  type: pytorch
+  device: cuda
+  device_ids: [0]
+  model: microsoft/phi-2  # Small 2.7B model for testing
+  torch_dtype: auto
+  device_map: auto
+
+scenario:
+  dataset_name: AIEnergyScore/text_generation
+  text_column_name: text
+  num_samples: 3  # Small set for testing
+  truncation: true
+  reasoning: false
+  input_shapes:
+    batch_size: 1
+  generate_kwargs:
+    max_new_tokens: 50
+    min_new_tokens: 10
+
+metrics:
+  type: codecarbon
+  enabled: false  # Disabled for quick testing
+  project_name: "pytorch_test"
+  output_dir: "./emissions"
+  country_iso_code: "USA"
+
+reporter:
+  type: csv
+  output_file: "./results/pytorch_test_results.csv"
+
+output_dir: ./benchmark_output

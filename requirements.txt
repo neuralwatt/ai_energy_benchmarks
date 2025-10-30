@@ -1,2 +1,17 @@
+# AI Energy Benchmarks - Core Dependencies
+# Install with: pip install -r requirements.txt
+
+# Core dependencies (required)
+requests>=2.31.0
+datasets>=2.14.0
+codecarbon>=2.3.0
+omegaconf>=2.3.0
+pyyaml>=6.0
+
+# Analysis and visualization helpers
 pandas
 matplotlib
+
+## Optional extras
+# Install PyTorch support with pip install -e ".[pytorch]"
+# Install all extras (dev + PyTorch) with pip install -e ".[all]"
