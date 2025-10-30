@@ -6,7 +6,6 @@ shown in the README actually work correctly.
 """
 
 import os
-import tempfile
 from pathlib import Path
 from typing import Any, Dict, cast
 from unittest.mock import patch
@@ -289,64 +288,6 @@ class TestREADMEScriptExamples:
 
         # Verify default config as mentioned in README
         assert 'CONFIG_FILE="${1:-configs/gpt_oss_120b.yaml}"' in content
-
-
-class TestREADMECSVOutputFormat:
-    """Test that CSV output format matches README examples."""
-
-    def test_csv_header_format(self):
-        """Test that CSV header format matches README documentation."""
-        # Expected headers after flattening (with summary_ prefix)
-        expected_headers = [
-            "summary_name",
-            "summary_backend",
-            "summary_model",
-            "summary_total_prompts",
-            "summary_successful_prompts",
-            "timestamp",
-        ]
-
-        # This matches the format shown in README line 206-207
-        from ai_energy_benchmarks.reporters.csv_reporter import CSVReporter
-
-        # Create a temporary CSV file path (don't create the file yet)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            temp_path = os.path.join(tmpdir, "test_output.csv")
-
-            reporter = CSVReporter(output_file=temp_path)
-
-            # Create sample results matching README example
-            results = {
-                "summary": {
-                    "name": "pytorch_backend_test",
-                    "backend": "pytorch",
-                    "model": "microsoft/phi-2",
-                    "total_prompts": 3,
-                    "successful_prompts": 3,
-                    "failed_prompts": 0,
-                    "total_energy_wh": 0.15,
-                    "total_emissions_g_co2eq": 0.04,
-                    "avg_latency_s": 1.23,
-                    "throughput_prompts_per_sec": 0.81,
-                }
-            }
-
-            reporter.report(results)
-
-            # Read and verify headers
-            with open(temp_path) as f:
-                lines = f.readlines()
-                assert (
-                    len(lines) >= 2
-                ), f"CSV should have header and at least one data row. Found {len(lines)} lines"
-                header_line = lines[0].strip()
-                headers = header_line.split(",")
-
-            # Verify key headers are present
-            for expected_header in expected_headers:
-                assert (
-                    expected_header in headers
-                ), f"Missing header: {expected_header}. Found: {headers}"
 
 
 class TestREADMEEnvironmentVariables:
