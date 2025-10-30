@@ -1,0 +1,63 @@
+# PyTorch Validation Configuration
+# Matches optimum-benchmark energy_star/text_generation.yaml
+#
+# Energy Measurement Methodology:
+# ================================
+# This configuration is aligned with AIEnergyScore methodology for standardized
+# energy measurement and model comparison.
+#
+# Primary Metric: GPU Energy (Wh)
+# - Reports GPU-only energy as the primary benchmark metric
+# - Enables fair model-to-model comparison across different hardware
+# - Matches AIEnergyScore, optimum-benchmark, and industry standards
+#
+# Energy Breakdown Available:
+# - energy_wh: GPU-only energy (primary metric for comparison)
+# - gpu_energy_wh: GPU energy (detailed)
+# - cpu_energy_wh: CPU energy (reference)
+# - ram_energy_wh: RAM energy (reference)
+# - total_energy_wh: Total system energy (GPU+CPU+RAM)
+#
+# Expected Results (openai/gpt-oss-20b, 1000 samples):
+# - GPU Energy: ~55 Wh (primary metric)
+# - Total Energy: ~67 Wh (includes CPU ~4 Wh, RAM ~8 Wh)
+# - Comparison with AIEnergyScore: GPU 53.82 Wh (2.9% difference acceptable)
+#
+# For details, see: ai_helpers/PYTORCH_BACKEND_VALIDATION.md
+
+name: pytorch_validation_test
+
+backend:
+  type: pytorch
+  device: cuda
+  device_ids: [0]
+  model: openai/gpt-oss-20b
+  task: text-generation
+  torch_dtype: auto
+  device_map: auto
+
+scenario:
+  dataset_name: EnergyStarAI/text_generation
+  text_column_name: text
+  num_samples: 1000
+  truncation: true
+  reasoning: false
+  input_shapes:
+    batch_size: 1
+  generate_kwargs:
+    max_new_tokens: 10
+    min_new_tokens: 10
+
+metrics:
+  type: codecarbon
+  enabled: true
+  project_name: "pytorch_validation_test"
+  output_dir: "./emissions/pytorch_validation"
+  country_iso_code: "USA"
+  region: null
+
+reporter:
+  type: csv
+  output_file: "./results/pytorch_validation_results.csv"
+
+output_dir: ./benchmark_output/pytorch_validation

@@ -1,0 +1,9 @@
+# vLLM Backend Configuration
+
+type: vllm
+device: cuda
+device_ids: [0]
+model: openai/gpt-oss-120b
+task: text-generation
+endpoint: "http://localhost:8000/v1"
+gpu_memory_utilization: 0.9

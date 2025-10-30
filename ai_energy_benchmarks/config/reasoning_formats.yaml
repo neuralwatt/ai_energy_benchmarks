@@ -1,0 +1,115 @@
+# Reasoning Format Registry
+# Defines how different model families handle reasoning/thinking capabilities
+
+# Model families with pattern matching
+families:
+  # gpt-oss models (Harmony formatting)
+  gpt-oss:
+    patterns:
+      - "gpt-oss"
+      - "openai/gpt-oss"
+    type: harmony
+    description: "OpenAI GPT-OSS models using Harmony format"
+
+  # SmolLM models (System prompt flags)
+  smollm:
+    patterns:
+      - "smollm"
+      - "huggingfacetb/smollm"
+    type: system_prompt
+    enable_flag: "/think"
+    disable_flag: "/no_think"
+    default_enabled: false
+    description: "SmolLM3 models using /think and /no_think flags"
+
+    # Per-model overrides (if needed)
+    model_overrides:
+      "smollm3-3b":
+        # SmolLM3-3B specific config (if different from family)
+        enable_flag: "/think"
+
+  # DeepSeek models (Prefix + Parameter)
+  deepseek:
+    patterns:
+      - "deepseek"
+      - "deepseek-ai"
+    type: prefix
+    prefix: "<think>"
+    suffix: ""
+    description: "DeepSeek-R1 models using <think> prefix"
+
+    # Alternative for parameter-based DeepSeek models
+    model_overrides:
+      "deepseek.*parameter":
+        type: parameter
+
+  # Qwen models (Chat template-based)
+  # NOTE: Qwen models use enable_thinking via chat template, not generate() params
+  # The PyTorch backend handles this specially in the use_chat_template path
+  qwen:
+    patterns:
+      - "qwen"
+    type: null
+    description: "Qwen models use enable_thinking via tokenizer.apply_chat_template()"
+
+  # Hunyuan models (System prompt)
+  hunyuan:
+    patterns:
+      - "hunyuan"
+    type: system_prompt
+    enable_flag: "/think"
+    disable_flag: null
+    default_enabled: false
+    description: "Hunyuan models using /think flag"
+
+  # Nemotron models (System prompt, default ON)
+  nemotron:
+    patterns:
+      - "nemotron"
+      - "nvidia/nemotron"
+    type: system_prompt
+    enable_flag: null
+    disable_flag: "/no_think"
+    default_enabled: true
+    description: "Nemotron models (thinking on by default, /no_think to disable)"
+
+  # EXAONE models (Parameter-based)
+  exaone:
+    patterns:
+      - "exaone"
+    type: parameter
+    description: "EXAONE models using enable_thinking parameter"
+
+  # Phi models (Parameter-based with generic reasoning flag)
+  phi:
+    patterns:
+      - "phi"
+      - "microsoft/phi"
+    type: parameter
+    description: "Microsoft Phi models using reasoning parameter"
+
+  # Gemma models (Parameter-based)
+  gemma:
+    patterns:
+      - "gemma"
+      - "google/gemma"
+    type: parameter
+    description: "Google Gemma models using reasoning parameter"
+
+# Explicit model overrides (highest priority)
+models:
+  "openai/gpt-oss-20b":
+    type: harmony
+
+  "openai/gpt-oss-120b":
+    type: harmony
+
+  "HuggingFaceTB/SmolLM3-3B":
+    type: system_prompt
+    enable_flag: "/think"
+    disable_flag: "/no_think"
+    default_enabled: false
+
+# Default formatter for unknown models
+default:
+  type: null  # No reasoning formatting by default

@@ -1,0 +1,42 @@
+# POC Docker Compose for ai_energy_benchmarks
+
+version: '3.8'
+
+services:
+  benchmark:
+    build:
+      context: .
+      dockerfile: Dockerfile.poc
+    container_name: ai_energy_benchmarks_poc
+
+    # GPU access
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+    # Environment variables
+    environment:
+      - CONFIG_FILE=${CONFIG_FILE:-configs/gpt_oss_120b.yaml}
+      - VLLM_ENDPOINT=${VLLM_ENDPOINT:-http://host.docker.internal:8000/v1}
+      - GPU_DEVICE=${GPU_DEVICE:-0}
+
+    # Volumes for results and configs
+    volumes:
+      - ./configs:/app/configs:ro
+      - ./results:/app/results
+      - ./emissions:/app/emissions
+      - ./benchmark_output:/app/benchmark_output
+
+    # Network mode to access host vLLM server
+    network_mode: host
+
+    # Command
+    command: ["./run_benchmark.sh", "${CONFIG_FILE:-configs/gpt_oss_120b.yaml}"]
+
+networks:
+  default:
+    name: ai_energy_benchmarks_network
