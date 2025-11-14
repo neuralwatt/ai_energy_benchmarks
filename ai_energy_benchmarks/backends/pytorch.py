@@ -753,6 +753,18 @@ class PyTorchBackend(Backend):
                 "success": True,
                 "error": None,
             }
+
+            # Print formatted prompt and response for debugging
+            print("\n" + "=" * 80)
+            print("PROMPT (formatted):")
+            print("-" * 80)
+            print(prompt[:500] if len(prompt) <= 500 else prompt[:500] + "...")
+            print("-" * 80)
+            print("RESPONSE:")
+            print("-" * 80)
+            print(completion_text)
+            print("=" * 80 + "\n")
+
             return result
 
         except Exception as e:
