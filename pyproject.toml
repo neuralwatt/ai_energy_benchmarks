@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ai_energy_benchmarks"
-version = "0.0.4"
+dynamic = ["version"]
 description = "Modular benchmarking framework for AI energy measurements - POC Phase"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -75,6 +75,9 @@ Issues = "https://github.com/neuralwatt/ai_energy_benchmarks/issues"
 # [project.scripts]
 # ai-energy-benchmark = "ai_energy_benchmarks.cli:main"
 # Note: CLI not implemented in POC phase - use programmatic API
+
+[tool.setuptools.dynamic]
+version = {file = "VERSION.txt"}
 
 [tool.setuptools]
 packages = ["ai_energy_benchmarks", "ai_energy_benchmarks.backends", "ai_energy_benchmarks.config",

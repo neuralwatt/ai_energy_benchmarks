@@ -3,7 +3,18 @@
 A modular benchmarking framework for AI energy measurements.
 """
 
-__version__ = "0.0.2"
+from importlib.metadata import version, PackageNotFoundError
+
+try:
+    __version__ = version("ai_energy_benchmarks")
+except PackageNotFoundError:
+    # Package not installed, fall back to reading VERSION.txt
+    from pathlib import Path
+    _version_file = Path(__file__).parent.parent / "VERSION.txt"
+    if _version_file.exists():
+        __version__ = _version_file.read_text().strip()
+    else:
+        __version__ = "0.0.0"  # Development fallback
 __author__ = "Neuralwatt"
 __license__ = "MIT"
 
