@@ -8,6 +8,7 @@ codecarbon>=2.3.0
 omegaconf>=2.3.0
 pyyaml>=6.0
 genai-perf>=0.0.16
+aiohttp>=3.8.0
 
 # Analysis and visualization helpers
 pandas

@@ -181,6 +181,46 @@ def get_power_test_profile() -> MultiPhaseProfile:
     )
 
 
+# Token length variation profiles - same request count, varying token lengths
+def get_short_tokens_profile() -> LoadProfileConfig:
+    """Get the short tokens profile (short input, short output)."""
+    return LoadProfileConfig(
+        name="short_tokens",
+        description="Short tokens - short input and output for baseline energy measurement",
+        concurrency=4,
+        request_count=20,
+        input_token_range=(50, 150),
+        output_token_range=(50, 150),
+        cache_strategy="minimal",
+    )
+
+
+def get_long_input_short_output_profile() -> LoadProfileConfig:
+    """Get the long input, short output profile."""
+    return LoadProfileConfig(
+        name="long_input_short_output",
+        description="Long input, short output - measures prefill-heavy workload energy",
+        concurrency=4,
+        request_count=20,
+        input_token_range=(1000, 2000),
+        output_token_range=(50, 150),
+        cache_strategy="minimal",
+    )
+
+
+def get_long_tokens_profile() -> LoadProfileConfig:
+    """Get the long tokens profile (long input, long output)."""
+    return LoadProfileConfig(
+        name="long_tokens",
+        description="Long tokens - long input and output for maximum energy measurement",
+        concurrency=4,
+        request_count=20,
+        input_token_range=(1000, 2000),
+        output_token_range=(1000, 2000),
+        cache_strategy="minimal",
+    )
+
+
 # Profile registry
 PROFILES: Dict[str, Union[LoadProfileConfig, MultiPhaseProfile]] = {}
 
@@ -196,6 +236,10 @@ def _initialize_profiles():
         "multiphase": get_multiphase_profile(),
         "pattern": get_pattern_profile(),
         "power_test": get_power_test_profile(),
+        # Token length variation profiles
+        "short_tokens": get_short_tokens_profile(),
+        "long_input_short_output": get_long_input_short_output_profile(),
+        "long_tokens": get_long_tokens_profile(),
     }
 
 
@@ -252,5 +296,8 @@ __all__ = [
     "get_multiphase_profile",
     "get_pattern_profile",
     "get_power_test_profile",
+    "get_short_tokens_profile",
+    "get_long_input_short_output_profile",
+    "get_long_tokens_profile",
     "PROFILES",
 ]

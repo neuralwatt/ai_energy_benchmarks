@@ -7,11 +7,14 @@ from ai_energy_benchmarks.profiles.definitions import (
     PROFILES,
     get_heavy_profile,
     get_light_profile,
+    get_long_input_short_output_profile,
+    get_long_tokens_profile,
     get_moderate_profile,
     get_multiphase_profile,
     get_pattern_profile,
     get_power_test_profile,
     get_profile,
+    get_short_tokens_profile,
     get_stress_profile,
     is_multi_phase,
     list_profiles,
@@ -201,6 +204,39 @@ class TestProfileDefinitions:
         assert profile.name == "power_test"
         assert len(profile.phases) == 4
 
+    def test_get_short_tokens_profile(self):
+        """Test short_tokens profile definition."""
+        profile = get_short_tokens_profile()
+
+        assert isinstance(profile, LoadProfileConfig)
+        assert profile.name == "short_tokens"
+        assert profile.concurrency == 4
+        assert profile.request_count == 20
+        assert profile.input_token_range == (50, 150)
+        assert profile.output_token_range == (50, 150)
+
+    def test_get_long_input_short_output_profile(self):
+        """Test long_input_short_output profile definition."""
+        profile = get_long_input_short_output_profile()
+
+        assert isinstance(profile, LoadProfileConfig)
+        assert profile.name == "long_input_short_output"
+        assert profile.concurrency == 4
+        assert profile.request_count == 20
+        assert profile.input_token_range == (1000, 2000)
+        assert profile.output_token_range == (50, 150)
+
+    def test_get_long_tokens_profile(self):
+        """Test long_tokens profile definition."""
+        profile = get_long_tokens_profile()
+
+        assert isinstance(profile, LoadProfileConfig)
+        assert profile.name == "long_tokens"
+        assert profile.concurrency == 4
+        assert profile.request_count == 20
+        assert profile.input_token_range == (1000, 2000)
+        assert profile.output_token_range == (1000, 2000)
+
 
 class TestProfileRegistry:
     """Tests for profile registry functions."""
@@ -217,7 +253,11 @@ class TestProfileRegistry:
         assert "multiphase" in profiles
         assert "pattern" in profiles
         assert "power_test" in profiles
-        assert len(profiles) == 7
+        # Token length variation profiles
+        assert "short_tokens" in profiles
+        assert "long_input_short_output" in profiles
+        assert "long_tokens" in profiles
+        assert len(profiles) == 10
 
     def test_get_profile_valid(self):
         """Test get_profile returns correct profile for valid names."""
@@ -239,6 +279,10 @@ class TestProfileRegistry:
         assert is_multi_phase(get_moderate_profile()) is False
         assert is_multi_phase(get_heavy_profile()) is False
         assert is_multi_phase(get_stress_profile()) is False
+        # Token length profiles are also single-phase
+        assert is_multi_phase(get_short_tokens_profile()) is False
+        assert is_multi_phase(get_long_input_short_output_profile()) is False
+        assert is_multi_phase(get_long_tokens_profile()) is False
 
     def test_is_multi_phase_multi(self):
         """Test is_multi_phase returns True for multi-phase profiles."""
@@ -248,7 +292,7 @@ class TestProfileRegistry:
 
     def test_profiles_registry_populated(self):
         """Test PROFILES registry is populated correctly."""
-        assert len(PROFILES) == 7
+        assert len(PROFILES) == 10
         assert all(name in PROFILES for name in list_profiles())
 
 
@@ -281,7 +325,11 @@ class TestProfileConsistency:
 
     def test_token_ranges_are_valid(self):
         """Test all profiles have valid token ranges (min <= max)."""
-        for name in ["light", "moderate", "heavy", "stress"]:
+        single_phase_profiles = [
+            "light", "moderate", "heavy", "stress",
+            "short_tokens", "long_input_short_output", "long_tokens",
+        ]
+        for name in single_phase_profiles:
             profile = get_profile(name)
 
             assert profile.input_token_range[0] <= profile.input_token_range[1]
