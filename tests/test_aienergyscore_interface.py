@@ -421,9 +421,7 @@ class TestBenchmarkRunnerInterface:
     @patch("ai_energy_benchmarks.backends.vllm.requests.get")
     @patch("ai_energy_benchmarks.backends.vllm.requests.post")
     @patch("datasets.load_dataset")
-    def test_run_returns_expected_structure(
-        self, mock_load_dataset, mock_post, mock_get
-    ):
+    def test_run_returns_expected_structure(self, mock_load_dataset, mock_post, mock_get):
         """runner.run() returns dict with expected keys for AIEnergyScore.
 
         AIEnergyScore expects:

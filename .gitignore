@@ -1,6 +1,6 @@
 *.csv
 !prompts.csv
-benchmark_output/*.log
+benchmark_output/
 .venv/
 __pycache__/
 .coverage

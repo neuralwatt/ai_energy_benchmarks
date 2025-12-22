@@ -34,6 +34,7 @@ dependencies = [
     "codecarbon>=2.3.0",
     "omegaconf>=2.3.0",
     "pyyaml>=6.0",
+    "pandas>=2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -72,18 +73,18 @@ Documentation = "https://github.com/neuralwatt/ai_energy_benchmarks/tree/main/do
 Repository = "https://github.com/neuralwatt/ai_energy_benchmarks"
 Issues = "https://github.com/neuralwatt/ai_energy_benchmarks/issues"
 
-# [project.scripts]
-# ai-energy-benchmark = "ai_energy_benchmarks.cli:main"
-# Note: CLI not implemented in POC phase - use programmatic API
+[project.scripts]
+ai-energy-profile = "ai_energy_benchmarks.cli.profile:main"
 
 [tool.setuptools.dynamic]
 version = {file = "VERSION.txt"}
 
 [tool.setuptools]
-packages = ["ai_energy_benchmarks", "ai_energy_benchmarks.backends", "ai_energy_benchmarks.config",
-            "ai_energy_benchmarks.datasets", "ai_energy_benchmarks.formatters",
-            "ai_energy_benchmarks.metrics", "ai_energy_benchmarks.reporters",
-            "ai_energy_benchmarks.utils"]
+packages = ["ai_energy_benchmarks", "ai_energy_benchmarks.backends", "ai_energy_benchmarks.cli",
+            "ai_energy_benchmarks.config", "ai_energy_benchmarks.datasets",
+            "ai_energy_benchmarks.executors", "ai_energy_benchmarks.formatters",
+            "ai_energy_benchmarks.metrics", "ai_energy_benchmarks.profiles",
+            "ai_energy_benchmarks.reporters", "ai_energy_benchmarks.utils"]
 
 [tool.setuptools.package-data]
 ai_energy_benchmarks = ["py.typed", "config/*.yaml"]
