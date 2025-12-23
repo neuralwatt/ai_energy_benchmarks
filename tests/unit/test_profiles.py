@@ -4,7 +4,7 @@ import pytest
 
 from ai_energy_benchmarks.profiles import LoadProfileConfig, MultiPhaseProfile
 from ai_energy_benchmarks.profiles.definitions import (
-    PROFILES,
+    _get_profiles_registry,
     get_heavy_profile,
     get_light_profile,
     get_long_input_short_output_profile,
@@ -291,9 +291,10 @@ class TestProfileRegistry:
         assert is_multi_phase(get_power_test_profile()) is True
 
     def test_profiles_registry_populated(self):
-        """Test PROFILES registry is populated correctly."""
-        assert len(PROFILES) == 10
-        assert all(name in PROFILES for name in list_profiles())
+        """Test profiles registry is populated correctly."""
+        profiles = _get_profiles_registry()
+        assert len(profiles) == 10
+        assert all(name in profiles for name in list_profiles())
 
 
 class TestProfileConsistency:
