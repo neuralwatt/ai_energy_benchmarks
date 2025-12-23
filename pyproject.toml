@@ -34,7 +34,6 @@ dependencies = [
     "codecarbon>=2.3.0",
     "omegaconf>=2.3.0",
     "pyyaml>=6.0",
-    "pandas>=2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -55,10 +54,15 @@ pytorch = [
     "accelerate",
 ]
 
+profiling = [
+    "pandas>=2.0.0",
+]
+
 all = [
     "torch>=2.0.0",
     "transformers>=4.30.0",
     "accelerate",
+    "pandas>=2.0.0",
     "pytest>=7.4.0",
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",
@@ -108,7 +112,7 @@ markers = [
     "integration: Integration tests requiring external services",
     "e2e: End-to-end tests requiring full system setup",
 ]
-asyncio_mode = "auto"
+asyncio_mode = "strict"
 
 [tool.black]
 line-length = 100

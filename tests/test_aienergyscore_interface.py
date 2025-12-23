@@ -717,14 +717,16 @@ class TestPackageLevelImports:
 
     def test_simple_package_import(self):
         """Test simple 'import ai_energy_benchmarks' works."""
-        import ai_energy_benchmarks
+        import importlib
 
+        ai_energy_benchmarks = importlib.import_module("ai_energy_benchmarks")
         assert ai_energy_benchmarks is not None
 
     def test_package_has_version(self):
         """Test package has __version__ attribute."""
-        import ai_energy_benchmarks
+        import importlib
 
+        ai_energy_benchmarks = importlib.import_module("ai_energy_benchmarks")
         assert hasattr(ai_energy_benchmarks, "__version__")
         assert isinstance(ai_energy_benchmarks.__version__, str)
 

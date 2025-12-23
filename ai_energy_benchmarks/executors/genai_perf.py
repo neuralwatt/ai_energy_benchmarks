@@ -9,6 +9,7 @@ import os
 import random
 import signal
 import subprocess
+import threading
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Union
@@ -28,6 +29,7 @@ class GenAIPerfExecutor:
         self.seed = seed
         self.running = True
         self.current_process: Optional[subprocess.Popen] = None
+        self._process_lock = threading.Lock()
 
         # Set seed for reproducible random number generation
         if self.seed is not None:
@@ -41,14 +43,15 @@ class GenAIPerfExecutor:
         """Handle shutdown signals gracefully."""
         print(f"\nReceived signal {signum}. Shutting down gracefully...")
         self.running = False
-        if self.current_process:
-            print("Terminating current genai-perf process...")
-            self.current_process.terminate()
-            try:
-                self.current_process.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                print("Force killing genai-perf process...")
-                self.current_process.kill()
+        with self._process_lock:
+            if self.current_process:
+                print("Terminating current genai-perf process...")
+                self.current_process.terminate()
+                try:
+                    self.current_process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    print("Force killing genai-perf process...")
+                    self.current_process.kill()
 
     def build_command(
         self,
@@ -228,7 +231,7 @@ class GenAIPerfExecutor:
                         "Explain the impact on society and industry.",
                     ]
 
-                    additions: list[str] = []
+                    additions: List[str] = []
                     tokens_needed = target_tokens - estimated_tokens
                     while len(" ".join(additions)) // 4 < tokens_needed:
                         addition = additional_content[len(additions) % len(additional_content)]
@@ -309,14 +312,15 @@ class GenAIPerfExecutor:
 
         try:
             # Run genai-perf
-            self.current_process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                env=os.environ.copy(),
-                universal_newlines=True,
-                bufsize=1,
-            )
+            with self._process_lock:
+                self.current_process = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    env=os.environ.copy(),
+                    universal_newlines=True,
+                    bufsize=1,
+                )
 
             # Stream output in real-time
             stdout = self.current_process.stdout
@@ -348,7 +352,8 @@ class GenAIPerfExecutor:
             print(f"Error running genai-perf: {e}")
             return False
         finally:
-            self.current_process = None
+            with self._process_lock:
+                self.current_process = None
 
     def run_multi_phase(
         self,

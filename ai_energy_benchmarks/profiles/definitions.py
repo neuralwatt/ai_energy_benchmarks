@@ -3,7 +3,7 @@
 This module contains predefined load profiles ported from genai_perf_load_proper.py.
 """
 
-from typing import Dict, TypeGuard, Union
+from typing import Dict, Optional, TypeGuard, Union
 
 from . import LoadProfileConfig, MultiPhaseProfile
 
@@ -221,29 +221,32 @@ def get_long_tokens_profile() -> LoadProfileConfig:
     )
 
 
-# Profile registry
-PROFILES: Dict[str, Union[LoadProfileConfig, MultiPhaseProfile]] = {}
+# Profile registry - lazy initialized and cached
+_PROFILES_CACHE: Optional[Dict[str, Union[LoadProfileConfig, MultiPhaseProfile]]] = None
 
 
-def _initialize_profiles():
-    """Initialize the profile registry."""
-    global PROFILES
-    PROFILES = {
-        "light": get_light_profile(),
-        "moderate": get_moderate_profile(),
-        "heavy": get_heavy_profile(),
-        "stress": get_stress_profile(),
-        "multiphase": get_multiphase_profile(),
-        "pattern": get_pattern_profile(),
-        "power_test": get_power_test_profile(),
-        # Token length variation profiles
-        "short_tokens": get_short_tokens_profile(),
-        "long_input_short_output": get_long_input_short_output_profile(),
-        "long_tokens": get_long_tokens_profile(),
-    }
-
-
-_initialize_profiles()
+def _get_profiles_registry() -> Dict[str, Union[LoadProfileConfig, MultiPhaseProfile]]:
+    """Get the profile registry, initializing it on first access.
+    
+    Returns:
+        Immutable dictionary of profiles
+    """
+    global _PROFILES_CACHE
+    if _PROFILES_CACHE is None:
+        _PROFILES_CACHE = {
+            "light": get_light_profile(),
+            "moderate": get_moderate_profile(),
+            "heavy": get_heavy_profile(),
+            "stress": get_stress_profile(),
+            "multiphase": get_multiphase_profile(),
+            "pattern": get_pattern_profile(),
+            "power_test": get_power_test_profile(),
+            # Token length variation profiles
+            "short_tokens": get_short_tokens_profile(),
+            "long_input_short_output": get_long_input_short_output_profile(),
+            "long_tokens": get_long_tokens_profile(),
+        }
+    return _PROFILES_CACHE
 
 
 def get_profile(name: str) -> Union[LoadProfileConfig, MultiPhaseProfile]:
@@ -258,10 +261,11 @@ def get_profile(name: str) -> Union[LoadProfileConfig, MultiPhaseProfile]:
     Raises:
         ValueError: If profile name is not found
     """
-    if name not in PROFILES:
-        available = ", ".join(PROFILES.keys())
+    profiles = _get_profiles_registry()
+    if name not in profiles:
+        available = ", ".join(profiles.keys())
         raise ValueError(f"Unknown profile: {name}. Available profiles: {available}")
-    return PROFILES[name]
+    return profiles[name]
 
 
 def list_profiles() -> list:
@@ -270,7 +274,7 @@ def list_profiles() -> list:
     Returns:
         List of profile names
     """
-    return list(PROFILES.keys())
+    return list(_get_profiles_registry().keys())
 
 
 def is_multi_phase(

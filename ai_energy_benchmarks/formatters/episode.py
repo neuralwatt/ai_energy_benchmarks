@@ -93,8 +93,12 @@ class EpisodeFormatter:
                 print(f"  Renamed: {os.path.basename(csv_file)} -> {new_filename}")
                 renamed_count += 1
 
-            except Exception as e:
+            except (OSError, shutil.Error) as e:
+                # Log expected file-related errors but continue processing other files.
                 print(f"  Error renaming {csv_file}: {e}")
+            except Exception:
+                # Re-raise unexpected exceptions so they are not silently ignored.
+                raise
 
         print(f"  Renamed {renamed_count} files for database compatibility")
         return renamed_count > 0
