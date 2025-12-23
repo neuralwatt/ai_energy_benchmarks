@@ -1,0 +1,18 @@
+# Heavy Load Profile
+# Target: 70-80% GPU utilization
+
+name: heavy
+description: "Heavy load - 70-80% GPU"
+
+concurrency: 8
+request_count: 80
+
+input_token_range:
+  - 300
+  - 500
+
+output_token_range:
+  - 1500
+  - 2000
+
+cache_strategy: low

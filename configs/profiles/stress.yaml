@@ -1,0 +1,18 @@
+# Stress Test Profile
+# Target: 90-100% GPU utilization (max power + throughput)
+
+name: stress
+description: "Stress test - Optimized for max power + throughput"
+
+concurrency: 24
+request_count: 240
+
+input_token_range:
+  - 200
+  - 600
+
+output_token_range:
+  - 1000
+  - 3000
+
+cache_strategy: minimal

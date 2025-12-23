@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ai_energy_benchmarks"
-version = "0.0.4"
+dynamic = ["version"]
 description = "Modular benchmarking framework for AI energy measurements - POC Phase"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -34,11 +34,13 @@ dependencies = [
     "codecarbon>=2.3.0",
     "omegaconf>=2.3.0",
     "pyyaml>=6.0",
+    "pandas>=2.0.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.11.0",
     "ruff>=0.1.0",
@@ -58,6 +60,7 @@ all = [
     "transformers>=4.30.0",
     "accelerate",
     "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.11.0",
     "ruff>=0.1.0",
@@ -72,15 +75,18 @@ Documentation = "https://github.com/neuralwatt/ai_energy_benchmarks/tree/main/do
 Repository = "https://github.com/neuralwatt/ai_energy_benchmarks"
 Issues = "https://github.com/neuralwatt/ai_energy_benchmarks/issues"
 
-# [project.scripts]
-# ai-energy-benchmark = "ai_energy_benchmarks.cli:main"
-# Note: CLI not implemented in POC phase - use programmatic API
+[project.scripts]
+ai-energy-profile = "ai_energy_benchmarks.cli.profile:main"
+
+[tool.setuptools.dynamic]
+version = {file = "VERSION.txt"}
 
 [tool.setuptools]
-packages = ["ai_energy_benchmarks", "ai_energy_benchmarks.backends", "ai_energy_benchmarks.config",
-            "ai_energy_benchmarks.datasets", "ai_energy_benchmarks.formatters",
-            "ai_energy_benchmarks.metrics", "ai_energy_benchmarks.reporters",
-            "ai_energy_benchmarks.utils"]
+packages = ["ai_energy_benchmarks", "ai_energy_benchmarks.backends", "ai_energy_benchmarks.cli",
+            "ai_energy_benchmarks.config", "ai_energy_benchmarks.datasets",
+            "ai_energy_benchmarks.executors", "ai_energy_benchmarks.formatters",
+            "ai_energy_benchmarks.metrics", "ai_energy_benchmarks.profiles",
+            "ai_energy_benchmarks.reporters", "ai_energy_benchmarks.utils"]
 
 [tool.setuptools.package-data]
 ai_energy_benchmarks = ["py.typed", "config/*.yaml"]
@@ -97,10 +103,12 @@ addopts = [
     "--cov-report=term",
 ]
 markers = [
+    "asyncio: mark test as an asyncio test",
     "readme_examples: Tests that validate examples from README.md",
     "integration: Integration tests requiring external services",
     "e2e: End-to-end tests requiring full system setup",
 ]
+asyncio_mode = "auto"
 
 [tool.black]
 line-length = 100
@@ -138,6 +146,7 @@ warn_unused_configs = true
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
 check_untyped_defs = true
+ignore_missing_imports = true
 
 # Ignore missing imports for optional dependencies
 [[tool.mypy.overrides]]
@@ -148,5 +157,17 @@ module = [
     "transformers.*",
     "accelerate",
     "accelerate.*",
+    "pandas",
+    "pandas.*",
+    "numpy",
+    "numpy.*",
+    "omegaconf",
+    "omegaconf.*",
+    "aiohttp",
+    "aiohttp.*",
+    "setuptools",
+    "setuptools.*",
+    "requests",
+    "requests.*",
 ]
 ignore_missing_imports = true

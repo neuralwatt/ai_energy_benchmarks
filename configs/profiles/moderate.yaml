@@ -1,0 +1,18 @@
+# Moderate Load Profile
+# Target: 40-50% GPU utilization
+
+name: moderate
+description: "Moderate load - 40-50% GPU"
+
+concurrency: 4
+request_count: 40
+
+input_token_range:
+  - 200
+  - 400
+
+output_token_range:
+  - 1000
+  - 1500
+
+cache_strategy: realistic
