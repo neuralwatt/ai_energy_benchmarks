@@ -226,12 +226,17 @@ class TestCLIHelp:
     def test_help_shows_all_profiles(self):
         """Test that --help shows all available profiles."""
         import subprocess
+        import sys
+        from pathlib import Path
+
+        # Get the project root dynamically (works in any environment)
+        project_root = Path(__file__).parent.parent.parent
 
         result = subprocess.run(
-            ["python", "-m", "ai_energy_benchmarks.cli.profile", "--help"],
+            [sys.executable, "-m", "ai_energy_benchmarks.cli.profile", "--help"],
             capture_output=True,
             text=True,
-            cwd="/root/src/ai_energy_benchmarks",
+            cwd=project_root,
         )
 
         # Check all profiles are mentioned
