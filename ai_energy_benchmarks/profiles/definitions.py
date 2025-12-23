@@ -3,8 +3,8 @@
 This module contains predefined load profiles ported from genai_perf_load_proper.py.
 """
 
-from typing import Dict, Optional, TypeGuard, Union
 from types import MappingProxyType
+from typing import Dict, Optional, TypeGuard, Union
 
 from . import LoadProfileConfig, MultiPhaseProfile
 
@@ -228,7 +228,7 @@ _PROFILES_CACHE: Optional[Dict[str, Union[LoadProfileConfig, MultiPhaseProfile]]
 
 def _get_profiles_registry() -> MappingProxyType:
     """Get the profile registry, initializing it on first access.
-    
+
     Returns:
         Immutable mapping proxy of profiles
     """
