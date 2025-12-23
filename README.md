@@ -495,9 +495,14 @@ The `ai-energy-profile` CLI provides a streamlined interface for running load pr
 
 **Installation:**
 ```bash
+# Basic installation
 pip install -e .
-# or
-pip install ai_energy_benchmarks
+
+# With profiling dependencies (pandas for result formatting)
+pip install -e ".[profiling]"
+
+# Or from PyPI
+pip install ai_energy_benchmarks[profiling]
 ```
 
 **Basic Usage:**
