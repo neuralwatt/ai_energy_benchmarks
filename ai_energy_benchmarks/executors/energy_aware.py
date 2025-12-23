@@ -145,8 +145,7 @@ class EnergyAwareExecutor:
         """
         if not AIOHTTP_AVAILABLE:
             raise ImportError(
-                "aiohttp is required for EnergyAwareExecutor. "
-                "Install it with: pip install aiohttp"
+                "aiohttp is required for EnergyAwareExecutor. Install it with: pip install aiohttp"
             )
         self.seed = seed
         self._random = random.Random(seed) if seed is not None else random.Random()
