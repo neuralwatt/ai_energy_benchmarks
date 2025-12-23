@@ -89,7 +89,9 @@ class ProfileResult:
             "wall_clock_seconds": round(self.total_wall_clock_seconds, 3),
             "inference_seconds": round(self.total_inference_seconds, 3),
             "tokens_per_second": round(self.tokens_per_second, 2),
-            "total_energy_j": round(self.total_energy_joules, 2) if self.total_energy_joules else None,
+            "total_energy_j": (
+                round(self.total_energy_joules, 2) if self.total_energy_joules else None
+            ),
             "total_energy_kwh": self.total_energy_kwh,
             "wh_per_request": round(self.wh_per_request, 6) if self.wh_per_request else None,
             "tokens_per_joule": round(self.tokens_per_joule, 4) if self.tokens_per_joule else None,
@@ -219,9 +221,7 @@ class EnergyAwareExecutor:
             ProfileResult with aggregated metrics
         """
         # Generate prompts
-        prompts = self._generate_prompts(
-            profile.request_count, profile.input_token_range
-        )
+        prompts = self._generate_prompts(profile.request_count, profile.input_token_range)
 
         # Normalize endpoint URL
         endpoint = endpoint.rstrip("/")
@@ -240,9 +240,7 @@ class EnergyAwareExecutor:
 
         async with aiohttp.ClientSession(timeout=timeout) as session:
             tasks = [
-                self._send_request(
-                    session, semaphore, endpoint, model, api_key, prompt, i
-                )
+                self._send_request(session, semaphore, endpoint, model, api_key, prompt, i)
                 for i, prompt in enumerate(prompts)
             ]
             results: List[RequestResult] = await asyncio.gather(*tasks)
@@ -396,26 +394,38 @@ class EnergyAwareExecutor:
 
         # Calculate inference duration from energy data if available, else use request duration
         total_inference_seconds = sum(
-            r.inference_duration_seconds if r.inference_duration_seconds else r.request_duration_seconds
+            (
+                r.inference_duration_seconds
+                if r.inference_duration_seconds
+                else r.request_duration_seconds
+            )
             for r in successful
         )
 
         # Throughput based on wall clock time (real-world throughput with concurrency)
-        tokens_per_second = total_completion_tokens / wall_clock_seconds if wall_clock_seconds > 0 else 0
+        tokens_per_second = (
+            total_completion_tokens / wall_clock_seconds if wall_clock_seconds > 0 else 0
+        )
 
         # Check if energy data is available
         has_energy = any(r.energy_joules is not None for r in successful)
 
         if has_energy and successful:
             energy_results = [r for r in successful if r.energy_joules is not None]
-            total_energy_j = sum(r.energy_joules for r in energy_results)
+            total_energy_j = sum(
+                r.energy_joules for r in energy_results if r.energy_joules is not None
+            )
             total_energy_kwh = sum(r.energy_kwh for r in energy_results if r.energy_kwh)
             power_readings = [r.avg_power_watts for r in energy_results if r.avg_power_watts]
             avg_power = sum(power_readings) / len(power_readings) if power_readings else None
 
             # Calculate derived metrics
-            wh_per_request = (total_energy_kwh * 1000) / len(energy_results) if total_energy_kwh else None
-            tokens_per_joule = total_completion_tokens / total_energy_j if total_energy_j > 0 else None
+            wh_per_request = (
+                (total_energy_kwh * 1000) / len(energy_results) if total_energy_kwh else None
+            )
+            tokens_per_joule = (
+                total_completion_tokens / total_energy_j if total_energy_j > 0 else None
+            )
         else:
             total_energy_j = None
             total_energy_kwh = None
@@ -470,6 +480,4 @@ def run_sync(
         ProfileResult with aggregated metrics
     """
     executor = EnergyAwareExecutor(seed=seed)
-    return asyncio.run(
-        executor.run(profile, endpoint, model, api_key, timeout_seconds)
-    )
+    return asyncio.run(executor.run(profile, endpoint, model, api_key, timeout_seconds))

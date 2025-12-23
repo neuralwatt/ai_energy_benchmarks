@@ -3,9 +3,6 @@
 import json
 import os
 import tempfile
-from datetime import datetime, timezone
-
-import pytest
 
 from ai_energy_benchmarks.formatters.episode import EpisodeFormatter
 
@@ -335,8 +332,8 @@ class TestCleanupPhaseFiles:
             episode_file = os.path.join(
                 tmpdir, "inference.load.genai_perf_episode_20240101_120200.csv"
             )
-            with open(episode_file, "w") as f:
-                f.write("test")
+            with open(episode_file, "w") as ep_fp:
+                ep_fp.write("test")
 
             formatter._cleanup_phase_files(tmpdir)
 

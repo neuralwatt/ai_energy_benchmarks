@@ -311,6 +311,7 @@ class TestProfileConsistency:
     def test_single_phase_profiles_have_request_count(self, profile_name):
         """Test single-phase profiles have request_count."""
         profile = get_profile(profile_name)
+        assert isinstance(profile, LoadProfileConfig)
 
         assert profile.request_count is not None
         assert profile.request_count > 0
@@ -326,11 +327,17 @@ class TestProfileConsistency:
     def test_token_ranges_are_valid(self):
         """Test all profiles have valid token ranges (min <= max)."""
         single_phase_profiles = [
-            "light", "moderate", "heavy", "stress",
-            "short_tokens", "long_input_short_output", "long_tokens",
+            "light",
+            "moderate",
+            "heavy",
+            "stress",
+            "short_tokens",
+            "long_input_short_output",
+            "long_tokens",
         ]
         for name in single_phase_profiles:
             profile = get_profile(name)
+            assert isinstance(profile, LoadProfileConfig)
 
             assert profile.input_token_range[0] <= profile.input_token_range[1]
             assert profile.output_token_range[0] <= profile.output_token_range[1]

@@ -228,7 +228,7 @@ class GenAIPerfExecutor:
                         "Explain the impact on society and industry.",
                     ]
 
-                    additions = []
+                    additions: list[str] = []
                     tokens_needed = target_tokens - estimated_tokens
                     while len(" ".join(additions)) // 4 < tokens_needed:
                         addition = additional_content[len(additions) % len(additional_content)]
@@ -319,8 +319,9 @@ class GenAIPerfExecutor:
             )
 
             # Stream output in real-time
-            while True:
-                output = self.current_process.stdout.readline()
+            stdout = self.current_process.stdout
+            while stdout is not None:
+                output = stdout.readline()
                 if output == "" and self.current_process.poll() is not None:
                     break
                 if output:

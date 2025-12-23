@@ -3,7 +3,7 @@
 This module contains predefined load profiles ported from genai_perf_load_proper.py.
 """
 
-from typing import Dict, Union
+from typing import Dict, TypeGuard, Union
 
 from . import LoadProfileConfig, MultiPhaseProfile
 
@@ -273,7 +273,9 @@ def list_profiles() -> list:
     return list(PROFILES.keys())
 
 
-def is_multi_phase(profile: Union[LoadProfileConfig, MultiPhaseProfile]) -> bool:
+def is_multi_phase(
+    profile: Union[LoadProfileConfig, MultiPhaseProfile],
+) -> TypeGuard[MultiPhaseProfile]:
     """Check if a profile is multi-phase.
 
     Args:

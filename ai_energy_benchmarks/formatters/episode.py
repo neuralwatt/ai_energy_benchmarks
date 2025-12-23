@@ -231,7 +231,7 @@ class EpisodeFormatter:
             # Fallback to estimates based on total tokens
             episode_avg_input_tokens = 150
             episode_prompt_tokens = episode_total_requests * episode_avg_input_tokens
-            episode_response_tokens = max(0, episode_total_tokens - episode_prompt_tokens)
+            episode_response_tokens = int(max(0, episode_total_tokens - episode_prompt_tokens))
             print(
                 f"  Using estimated token data: {episode_prompt_tokens} prompt + {episode_response_tokens} response"
             )

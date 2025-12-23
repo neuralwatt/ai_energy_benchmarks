@@ -5,8 +5,6 @@ import os
 import tempfile
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from ai_energy_benchmarks.executors.genai_perf import GenAIPerfExecutor
 from ai_energy_benchmarks.profiles import LoadProfileConfig, MultiPhaseProfile
 
@@ -329,6 +327,7 @@ class TestGenerateDeterministicPrompts:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             result = executor.generate_deterministic_prompts(profile, tmpdir)
+            assert result is not None
 
             with open(result, "r") as f:
                 lines = [line for line in f if line.strip()]
@@ -346,6 +345,7 @@ class TestGenerateDeterministicPrompts:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             result = executor.generate_deterministic_prompts(profile, tmpdir)
+            assert result is not None
 
             with open(result, "r") as f:
                 for line in f:
@@ -365,12 +365,14 @@ class TestGenerateDeterministicPrompts:
         with tempfile.TemporaryDirectory() as tmpdir1:
             executor1 = GenAIPerfExecutor(seed=42)
             result1 = executor1.generate_deterministic_prompts(profile, tmpdir1)
+            assert result1 is not None
             with open(result1, "r") as f:
                 content1 = f.read()
 
         with tempfile.TemporaryDirectory() as tmpdir2:
             executor2 = GenAIPerfExecutor(seed=42)
             result2 = executor2.generate_deterministic_prompts(profile, tmpdir2)
+            assert result2 is not None
             with open(result2, "r") as f:
                 content2 = f.read()
 
@@ -387,12 +389,14 @@ class TestGenerateDeterministicPrompts:
         with tempfile.TemporaryDirectory() as tmpdir1:
             executor1 = GenAIPerfExecutor(seed=42)
             result1 = executor1.generate_deterministic_prompts(profile, tmpdir1)
+            assert result1 is not None
             with open(result1, "r") as f:
                 content1 = f.read()
 
         with tempfile.TemporaryDirectory() as tmpdir2:
             executor2 = GenAIPerfExecutor(seed=99)
             result2 = executor2.generate_deterministic_prompts(profile, tmpdir2)
+            assert result2 is not None
             with open(result2, "r") as f:
                 content2 = f.read()
 
@@ -409,10 +413,12 @@ class TestGenerateDeterministicPrompts:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             result1 = executor.generate_deterministic_prompts(profile, tmpdir)
+            assert result1 is not None
             mtime1 = os.path.getmtime(result1)
 
             # Second call should return cached file
             result2 = executor.generate_deterministic_prompts(profile, tmpdir)
+            assert result2 is not None
             mtime2 = os.path.getmtime(result2)
 
             assert result1 == result2
@@ -599,7 +605,7 @@ class TestRunMultiPhaseMethod:
 
         # Should exit early without executing phases
         with patch.object(GenAIPerfExecutor, "run") as mock_run:
-            result = executor.run_multi_phase(
+            executor.run_multi_phase(
                 profile,
                 endpoint="http://localhost:8000/v1",
                 model="test-model",

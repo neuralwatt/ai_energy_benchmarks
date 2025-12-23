@@ -560,6 +560,7 @@ class TestReasoningParametersSupport:
             reasoning_params={"enable_thinking": True},
         )
 
+        assert cfg.reasoning_params is not None
         assert cfg.reasoning_params["enable_thinking"] is True
 
     def test_scenario_enable_thinking_false(self):
@@ -572,6 +573,7 @@ class TestReasoningParametersSupport:
             reasoning_params={"enable_thinking": False},
         )
 
+        assert cfg.reasoning_params is not None
         assert cfg.reasoning_params["enable_thinking"] is False
 
     def test_scenario_reasoning_effort(self):
@@ -584,6 +586,7 @@ class TestReasoningParametersSupport:
                 reasoning=True,
                 reasoning_params={"reasoning_effort": effort},
             )
+            assert cfg.reasoning_params is not None
             assert cfg.reasoning_params["reasoning_effort"] == effort
 
     def test_scenario_thinking_budget(self):
@@ -596,6 +599,7 @@ class TestReasoningParametersSupport:
             reasoning_params={"enable_thinking": True, "thinking_budget": 1000},
         )
 
+        assert cfg.reasoning_params is not None
         assert cfg.reasoning_params["thinking_budget"] == 1000
 
     def test_scenario_generic_reasoning_true(self):
@@ -608,6 +612,7 @@ class TestReasoningParametersSupport:
             reasoning_params={"reasoning": True},
         )
 
+        assert cfg.reasoning_params is not None
         assert cfg.reasoning_params["reasoning"] is True
 
 
@@ -785,6 +790,7 @@ class TestDictStyleAccess:
             reasoning_params={"enable_thinking": True, "thinking_budget": 1000},
         )
 
+        assert cfg.reasoning_params is not None
         assert cfg.reasoning_params["enable_thinking"] is True
         assert cfg.reasoning_params["thinking_budget"] == 1000
 
@@ -798,6 +804,7 @@ class TestDictStyleAccess:
         )
 
         # .get() should work
+        assert cfg.reasoning_params is not None
         assert cfg.reasoning_params.get("reasoning_effort") == "high"
         assert cfg.reasoning_params.get("nonexistent") is None
         assert cfg.reasoning_params.get("nonexistent", "default") == "default"

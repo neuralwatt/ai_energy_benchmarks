@@ -1,7 +1,5 @@
 """Tests for EnergyAwareExecutor."""
 
-import asyncio
-import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -382,7 +380,9 @@ class TestEnergyAwareExecutorIntegration:
         mock_resp.json = AsyncMock(return_value=mock_response_with_energy)
 
         # Mock aiohttp session - need to patch where it's used
-        with patch("ai_energy_benchmarks.executors.energy_aware.aiohttp.ClientSession") as mock_session_class:
+        with patch(
+            "ai_energy_benchmarks.executors.energy_aware.aiohttp.ClientSession"
+        ) as mock_session_class:
             # Create proper async context manager for session
             mock_session = MagicMock()
             mock_session_class.return_value.__aenter__ = AsyncMock(return_value=mock_session)
@@ -422,7 +422,9 @@ class TestEnergyAwareExecutorIntegration:
         mock_resp.status = 200
         mock_resp.json = AsyncMock(return_value=mock_response_without_energy)
 
-        with patch("ai_energy_benchmarks.executors.energy_aware.aiohttp.ClientSession") as mock_session_class:
+        with patch(
+            "ai_energy_benchmarks.executors.energy_aware.aiohttp.ClientSession"
+        ) as mock_session_class:
             mock_session = MagicMock()
             mock_session_class.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             mock_session_class.return_value.__aexit__ = AsyncMock(return_value=None)
@@ -461,7 +463,9 @@ class TestEnergyAwareExecutorIntegration:
         mock_resp.status = 401
         mock_resp.text = AsyncMock(return_value="Unauthorized")
 
-        with patch("ai_energy_benchmarks.executors.energy_aware.aiohttp.ClientSession") as mock_session_class:
+        with patch(
+            "ai_energy_benchmarks.executors.energy_aware.aiohttp.ClientSession"
+        ) as mock_session_class:
             mock_session = MagicMock()
             mock_session_class.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             mock_session_class.return_value.__aexit__ = AsyncMock(return_value=None)
@@ -508,7 +512,9 @@ class TestEnergyAwareExecutorIntegration:
             mock_post_cm.__aexit__ = AsyncMock(return_value=None)
             return mock_post_cm
 
-        with patch("ai_energy_benchmarks.executors.energy_aware.aiohttp.ClientSession") as mock_session_class:
+        with patch(
+            "ai_energy_benchmarks.executors.energy_aware.aiohttp.ClientSession"
+        ) as mock_session_class:
             mock_session = MagicMock()
             mock_session_class.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             mock_session_class.return_value.__aexit__ = AsyncMock(return_value=None)
@@ -547,7 +553,9 @@ class TestRunSync:
         mock_resp.status = 200
         mock_resp.json = AsyncMock(return_value=mock_response)
 
-        with patch("ai_energy_benchmarks.executors.energy_aware.aiohttp.ClientSession") as mock_session_class:
+        with patch(
+            "ai_energy_benchmarks.executors.energy_aware.aiohttp.ClientSession"
+        ) as mock_session_class:
             mock_session = MagicMock()
             mock_session_class.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             mock_session_class.return_value.__aexit__ = AsyncMock(return_value=None)

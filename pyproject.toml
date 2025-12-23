@@ -40,6 +40,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.11.0",
     "ruff>=0.1.0",
@@ -59,6 +60,7 @@ all = [
     "transformers>=4.30.0",
     "accelerate",
     "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.11.0",
     "ruff>=0.1.0",
@@ -101,10 +103,12 @@ addopts = [
     "--cov-report=term",
 ]
 markers = [
+    "asyncio: mark test as an asyncio test",
     "readme_examples: Tests that validate examples from README.md",
     "integration: Integration tests requiring external services",
     "e2e: End-to-end tests requiring full system setup",
 ]
+asyncio_mode = "auto"
 
 [tool.black]
 line-length = 100

@@ -11,6 +11,7 @@ import sys
 from datetime import datetime, timezone
 
 from ..executors.genai_perf import GenAIPerfExecutor
+from ..profiles import LoadProfileConfig
 from ..profiles.definitions import get_profile, is_multi_phase, list_profiles
 
 
@@ -114,6 +115,7 @@ Available profiles:
         total_requests = sum(p.request_count for p in profile.phases)
         print(f"Total requests: {total_requests} (across {len(profile.phases)} phases)")
     else:
+        assert isinstance(profile, LoadProfileConfig)
         print(f"Request count: {profile.request_count}")
         print(f"Concurrency: {profile.concurrency}")
     if args.seed is not None:
@@ -151,6 +153,7 @@ Available profiles:
             sys.exit(1)
     else:
         # Run single-phase test
+        assert isinstance(profile, LoadProfileConfig)
         success = executor.run(
             profile,
             args.endpoint,
