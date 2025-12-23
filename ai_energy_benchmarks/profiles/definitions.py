@@ -4,6 +4,7 @@ This module contains predefined load profiles ported from genai_perf_load_proper
 """
 
 from typing import Dict, Optional, TypeGuard, Union
+from types import MappingProxyType
 
 from . import LoadProfileConfig, MultiPhaseProfile
 
@@ -225,11 +226,11 @@ def get_long_tokens_profile() -> LoadProfileConfig:
 _PROFILES_CACHE: Optional[Dict[str, Union[LoadProfileConfig, MultiPhaseProfile]]] = None
 
 
-def _get_profiles_registry() -> Dict[str, Union[LoadProfileConfig, MultiPhaseProfile]]:
+def _get_profiles_registry() -> MappingProxyType:
     """Get the profile registry, initializing it on first access.
     
     Returns:
-        Immutable dictionary of profiles
+        Immutable mapping proxy of profiles
     """
     global _PROFILES_CACHE
     if _PROFILES_CACHE is None:
@@ -246,7 +247,7 @@ def _get_profiles_registry() -> Dict[str, Union[LoadProfileConfig, MultiPhasePro
             "long_input_short_output": get_long_input_short_output_profile(),
             "long_tokens": get_long_tokens_profile(),
         }
-    return _PROFILES_CACHE
+    return MappingProxyType(_PROFILES_CACHE)
 
 
 def get_profile(name: str) -> Union[LoadProfileConfig, MultiPhaseProfile]:
@@ -289,6 +290,10 @@ def is_multi_phase(
         True if multi-phase, False otherwise
     """
     return isinstance(profile, MultiPhaseProfile)
+
+
+# Backwards compatibility: expose PROFILES as an immutable mapping
+PROFILES = _get_profiles_registry()
 
 
 __all__ = [
