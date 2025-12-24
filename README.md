@@ -487,6 +487,121 @@ backend:
 - Endpoint must be accessible from benchmark environment
 - Results include serving overhead (batching, scheduling, HTTP)
 
+---
+
+### GenAI-Perf Load Profiling (ai-energy-profile CLI)
+
+The `ai-energy-profile` CLI provides a streamlined interface for running load profiles using NVIDIA's genai-perf tool against vLLM or OpenAI-compatible endpoints.
+
+**Installation:**
+```bash
+# Basic installation
+pip install -e .
+
+# With profiling dependencies (pandas for result formatting)
+pip install -e ".[profiling]"
+
+# Or from PyPI
+pip install ai_energy_benchmarks[profiling]
+```
+
+**Basic Usage:**
+```bash
+# Run a light load test (20 requests)
+ai-energy-profile --profile light --model my-model
+
+# Run against a custom endpoint
+ai-energy-profile --profile moderate --model my-model --endpoint http://my-server:8000/v1
+
+# Run with reproducible inputs using a seed
+ai-energy-profile --profile heavy --model my-model --seed 42
+```
+
+**Available Profiles:**
+
+| Profile | Requests | Concurrency | Description |
+|---------|----------|-------------|-------------|
+| `light` | 20 | 2 | Light load - 10-20% GPU utilization |
+| `moderate` | 40 | 4 | Moderate load - 40-50% GPU utilization |
+| `heavy` | 80 | 8 | Heavy load - 70-80% GPU utilization |
+| `stress` | 240 | 24 | Stress test - 90-100% GPU utilization |
+| `multiphase` | 78 | varies | Multi-phase workload with variability |
+| `pattern` | varies | varies | Multi-phase pattern test |
+| `power_test` | varies | varies | Extended phases for power measurement |
+
+**Authentication (--api-key):**
+
+For authenticated API endpoints, use the `--api-key` flag:
+
+```bash
+# Connect to an authenticated API endpoint
+ai-energy-profile --profile light \
+  --model meta-llama/Llama-3.3-70B-Instruct \
+  --endpoint https://api.neuralwatt.com/v1 \
+  --api-key YOUR_API_KEY
+```
+
+The API key is passed as a Bearer token in the `Authorization` header.
+
+**Endpoint Types (--endpoint-type):**
+
+Different APIs support different endpoint types:
+
+| Endpoint Type | API Path | Use For |
+|---------------|----------|---------|
+| `chat` (default) | `/v1/chat/completions` | OpenAI-compatible chat APIs |
+| `completions` | `/v1/completions` | Legacy completions APIs |
+
+```bash
+# Use chat completions endpoint (default)
+ai-energy-profile --profile light --model my-model --endpoint-type chat
+
+# Use legacy completions endpoint
+ai-energy-profile --profile light --model my-model --endpoint-type completions
+```
+
+**All CLI Options:**
+
+```bash
+ai-energy-profile --help
+
+Options:
+  --profile {light,moderate,heavy,stress,multiphase,pattern,power_test}
+                        Load profile to use (default: moderate)
+  --endpoint ENDPOINT   API endpoint URL (default: http://localhost:8000/v1)
+  --model MODEL         Model name (required)
+  --output-dir DIR      Output directory for results (default: ./benchmark_output)
+  --seed SEED           Random seed for reproducible inputs and outputs
+  --api-key API_KEY     API key for authenticated endpoints (Bearer token)
+  --endpoint-type {chat,completions}
+                        Endpoint type (default: chat)
+  --run-id-suffix SUFFIX
+                        Suffix to append to episode RunId for differentiation
+  --prompts-file FILE   Path to custom prompts file
+```
+
+**Example: Testing Against Remote API:**
+
+```bash
+# Test against NeuralWatt API with authentication
+ai-energy-profile --profile light \
+  --model Qwen/Qwen3-Coder-480B-A35B-Instruct \
+  --endpoint https://api.neuralwatt.com/v1 \
+  --api-key sk-your-api-key-here \
+  --seed 42
+```
+
+**Example: Multi-Phase Workload:**
+
+```bash
+# Run multi-phase profile (light → moderate → stress)
+ai-energy-profile --profile multiphase \
+  --model my-model \
+  --endpoint http://localhost:8000/v1
+```
+
+---
+
 ### Scenario Configuration
 
 Controls the benchmark workload and generation parameters:

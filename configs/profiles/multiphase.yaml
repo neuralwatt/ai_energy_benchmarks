@@ -1,0 +1,41 @@
+# Multi-phase Workload Profile
+# Multi-phase with realistic variability
+
+name: multiphase
+description: "Multi-phase workload with realistic variability"
+type: multi-phase
+cache_strategy: minimal
+
+phases:
+  - name: light
+    description: "Light phase"
+    concurrency: 2
+    request_count: 10
+    input_token_range:
+      - 100
+      - 300
+    output_token_range:
+      - 500
+      - 1000
+
+  - name: moderate
+    description: "Moderate phase"
+    concurrency: 4
+    request_count: 20
+    input_token_range:
+      - 200
+      - 400
+    output_token_range:
+      - 1000
+      - 1500
+
+  - name: stress
+    description: "Stress phase"
+    concurrency: 24
+    request_count: 48
+    input_token_range:
+      - 200
+      - 600
+    output_token_range:
+      - 1000
+      - 3000

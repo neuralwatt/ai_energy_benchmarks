@@ -1,0 +1,18 @@
+# Light Load Profile
+# Target: 10-20% GPU utilization
+
+name: light
+description: "Light load - 10-20% GPU"
+
+concurrency: 2
+request_count: 20
+
+input_token_range:
+  - 100
+  - 300
+
+output_token_range:
+  - 500
+  - 1000
+
+cache_strategy: realistic
