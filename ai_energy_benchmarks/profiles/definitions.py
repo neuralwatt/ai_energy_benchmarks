@@ -4,7 +4,7 @@ This module contains predefined load profiles ported from genai_perf_load_proper
 """
 
 from types import MappingProxyType
-from typing import Dict, Optional, TypeGuard, Union
+from typing import Dict, Optional, TypeGuard, Union, cast
 
 from . import LoadProfileConfig, MultiPhaseProfile
 
@@ -266,7 +266,7 @@ def get_profile(name: str) -> Union[LoadProfileConfig, MultiPhaseProfile]:
     if name not in profiles:
         available = ", ".join(profiles.keys())
         raise ValueError(f"Unknown profile: {name}. Available profiles: {available}")
-    return profiles[name]
+    return cast(Union[LoadProfileConfig, MultiPhaseProfile], profiles[name])
 
 
 def list_profiles() -> list:
