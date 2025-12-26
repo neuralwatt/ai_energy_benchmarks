@@ -272,8 +272,8 @@ class TestEnergyAwareExecutor:
         assert profile_result.energy_available is True
         assert profile_result.total_energy_joules == 500.0
         assert profile_result.avg_power_watts == 625.0  # (600 + 650) / 2
-        # tokens_per_joule = 100 / 500 = 0.2
-        assert profile_result.tokens_per_joule == 0.2
+        # tokens_per_joule = 120 / 500 = 0.24 (uses total_tokens since energy is consumed for both prefill and decode)
+        assert profile_result.tokens_per_joule == 0.24
 
     @pytest.mark.asyncio
     async def test_aggregate_results_with_errors(self):
