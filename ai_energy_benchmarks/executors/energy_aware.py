@@ -163,6 +163,30 @@ class EnergyAwareExecutor:
         prompts = []
         min_tokens, max_tokens = input_token_range
 
+        # Extended content blocks for building longer prompts (~50 tokens each)
+        content_blocks = [
+            "Please provide detailed examples and explanations with specific use cases.",
+            "Include practical applications and real-world scenarios where this applies.",
+            "Discuss the historical context, development, and evolution over time.",
+            "Explain the technical details, mechanisms, and underlying principles involved.",
+            "Compare and contrast with related concepts, alternatives, and similar approaches.",
+            "Analyze the advantages, disadvantages, trade-offs, and considerations.",
+            "Provide step-by-step instructions, processes, and implementation guidelines.",
+            "Include relevant statistics, data, research findings, and empirical evidence.",
+            "Discuss future trends, developments, predictions, and potential innovations.",
+            "Explain the impact on society, industry, economics, and various stakeholders.",
+            "Describe the key components, architecture, structure, and organization.",
+            "Outline the methodology, approach, framework, and best practices.",
+            "Address common challenges, problems, limitations, and how to overcome them.",
+            "Discuss security implications, risks, vulnerabilities, and mitigation strategies.",
+            "Explain performance characteristics, optimization techniques, and efficiency.",
+            "Cover testing strategies, validation methods, and quality assurance approaches.",
+            "Describe integration patterns, compatibility considerations, and interoperability.",
+            "Discuss scalability aspects, growth considerations, and capacity planning.",
+            "Explain maintenance requirements, operational procedures, and lifecycle management.",
+            "Address regulatory compliance, standards, certifications, and legal considerations.",
+        ]
+
         for i in range(count):
             base_prompt = self.BASE_PROMPTS[i % len(self.BASE_PROMPTS)]
 
@@ -177,23 +201,22 @@ class EnergyAwareExecutor:
 
             # Extend prompt to reach target token count
             target_tokens = self._random.randint(min_tokens, max_tokens)
-            estimated_tokens = len(prompt) // 4  # Rough estimate
+            estimated_tokens = len(prompt) // 4  # Rough estimate: ~4 chars per token
 
-            if estimated_tokens < target_tokens:
-                extensions = [
-                    "Please provide detailed examples and explanations.",
-                    "Include practical applications and use cases.",
-                    "Discuss the historical context and development.",
-                    "Explain the technical details and mechanisms involved.",
-                    "Compare and contrast with related concepts.",
-                    "Analyze the advantages and disadvantages.",
-                    "Provide step-by-step instructions or processes.",
-                    "Include relevant statistics and data.",
-                    "Discuss future trends and developments.",
-                    "Explain the impact on society and industry.",
-                ]
-                while len(prompt) // 4 < target_tokens and extensions:
-                    prompt += " " + extensions.pop(0)
+            # Add content blocks to reach target
+            block_index = 0
+            while estimated_tokens < target_tokens:
+                block = content_blocks[block_index % len(content_blocks)]
+                # Add variation to repeated blocks
+                if block_index >= len(content_blocks):
+                    variation = f" (aspect {block_index // len(content_blocks) + 1})"
+                    block = block.rstrip(".") + variation + "."
+                prompt += " " + block
+                estimated_tokens = len(prompt) // 4
+                block_index += 1
+                # Safety limit to prevent infinite loops
+                if block_index > 200:
+                    break
 
             prompts.append(prompt)
 
@@ -222,6 +245,9 @@ class EnergyAwareExecutor:
         # Generate prompts
         prompts = self._generate_prompts(profile.request_count, profile.input_token_range)
 
+        # Get max_tokens from profile's output_token_range (use upper bound)
+        max_tokens = profile.output_token_range[1]
+
         # Normalize endpoint URL
         endpoint = endpoint.rstrip("/")
         if not endpoint.endswith("/v1"):
@@ -239,7 +265,9 @@ class EnergyAwareExecutor:
 
         async with aiohttp.ClientSession(timeout=timeout) as session:
             tasks = [
-                self._send_request(session, semaphore, endpoint, model, api_key, prompt, i)
+                self._send_request(
+                    session, semaphore, endpoint, model, api_key, prompt, i, max_tokens
+                )
                 for i, prompt in enumerate(prompts)
             ]
             results: List[RequestResult] = await asyncio.gather(*tasks)
@@ -265,6 +293,7 @@ class EnergyAwareExecutor:
         api_key: str,
         prompt: str,
         index: int,
+        max_tokens: int = 500,
     ) -> RequestResult:
         """Send a single request and parse response.
 
@@ -276,6 +305,7 @@ class EnergyAwareExecutor:
             api_key: API key
             prompt: Prompt text
             index: Request index for logging
+            max_tokens: Maximum tokens to generate
 
         Returns:
             RequestResult with parsed metrics
@@ -292,7 +322,7 @@ class EnergyAwareExecutor:
                     json={
                         "model": model,
                         "messages": [{"role": "user", "content": prompt}],
-                        "max_tokens": 500,
+                        "max_tokens": max_tokens,
                     },
                 ) as response:
                     request_duration = time.perf_counter() - request_start
@@ -422,9 +452,8 @@ class EnergyAwareExecutor:
             wh_per_request = (
                 (total_energy_kwh * 1000) / len(energy_results) if total_energy_kwh else None
             )
-            tokens_per_joule = (
-                total_completion_tokens / total_energy_j if total_energy_j > 0 else None
-            )
+            # Use total_tokens (prompt + completion) since energy is consumed for both prefill and decode
+            tokens_per_joule = total_tokens / total_energy_j if total_energy_j > 0 else None
         else:
             total_energy_j = None
             total_energy_kwh = None
