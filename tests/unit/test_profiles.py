@@ -15,6 +15,9 @@ from ai_energy_benchmarks.profiles.definitions import (
     get_power_test_profile,
     get_profile,
     get_short_tokens_profile,
+    get_single_stream_heavy_profile,
+    get_single_stream_light_profile,
+    get_single_stream_moderate_profile,
     get_stress_profile,
     is_multi_phase,
     list_profiles,
@@ -237,6 +240,36 @@ class TestProfileDefinitions:
         assert profile.input_token_range == (1000, 2000)
         assert profile.output_token_range == (1000, 2000)
 
+    def test_get_single_stream_light_profile(self):
+        """Test single_stream_light profile definition."""
+        profile = get_single_stream_light_profile()
+
+        assert isinstance(profile, LoadProfileConfig)
+        assert profile.name == "single_stream_light"
+        assert profile.concurrency == 1
+        assert profile.request_count == 30
+        assert profile.output_token_range == (100, 200)
+
+    def test_get_single_stream_moderate_profile(self):
+        """Test single_stream_moderate profile definition."""
+        profile = get_single_stream_moderate_profile()
+
+        assert isinstance(profile, LoadProfileConfig)
+        assert profile.name == "single_stream_moderate"
+        assert profile.concurrency == 1
+        assert profile.request_count == 30
+        assert profile.output_token_range == (200, 500)
+
+    def test_get_single_stream_heavy_profile(self):
+        """Test single_stream_heavy profile definition."""
+        profile = get_single_stream_heavy_profile()
+
+        assert isinstance(profile, LoadProfileConfig)
+        assert profile.name == "single_stream_heavy"
+        assert profile.concurrency == 1
+        assert profile.request_count == 20
+        assert profile.output_token_range == (500, 1000)
+
 
 class TestProfileRegistry:
     """Tests for profile registry functions."""
@@ -257,7 +290,11 @@ class TestProfileRegistry:
         assert "short_tokens" in profiles
         assert "long_input_short_output" in profiles
         assert "long_tokens" in profiles
-        assert len(profiles) == 10
+        # Single-stream profiles
+        assert "single_stream_light" in profiles
+        assert "single_stream_moderate" in profiles
+        assert "single_stream_heavy" in profiles
+        assert len(profiles) == 13
 
     def test_get_profile_valid(self):
         """Test get_profile returns correct profile for valid names."""
@@ -283,6 +320,10 @@ class TestProfileRegistry:
         assert is_multi_phase(get_short_tokens_profile()) is False
         assert is_multi_phase(get_long_input_short_output_profile()) is False
         assert is_multi_phase(get_long_tokens_profile()) is False
+        # Single-stream profiles are also single-phase
+        assert is_multi_phase(get_single_stream_light_profile()) is False
+        assert is_multi_phase(get_single_stream_moderate_profile()) is False
+        assert is_multi_phase(get_single_stream_heavy_profile()) is False
 
     def test_is_multi_phase_multi(self):
         """Test is_multi_phase returns True for multi-phase profiles."""
@@ -293,7 +334,7 @@ class TestProfileRegistry:
     def test_profiles_registry_populated(self):
         """Test profiles registry is populated correctly."""
         profiles = _get_profiles_registry()
-        assert len(profiles) == 10
+        assert len(profiles) == 13
         assert all(name in profiles for name in list_profiles())
 
 
@@ -335,6 +376,9 @@ class TestProfileConsistency:
             "short_tokens",
             "long_input_short_output",
             "long_tokens",
+            "single_stream_light",
+            "single_stream_moderate",
+            "single_stream_heavy",
         ]
         for name in single_phase_profiles:
             profile = get_profile(name)
