@@ -461,9 +461,9 @@ class TestSingleStreamExecutor:
         ):
             executor.run(profile, "http://localhost:8000/v1", "test-model")
 
-        assert any("sample-error rate" in r.message for r in caplog.records), (
-            f"expected sample-error warning, got: {[r.message for r in caplog.records]}"
-        )
+        assert any(
+            "sample-error rate" in r.message for r in caplog.records
+        ), f"expected sample-error warning, got: {[r.message for r in caplog.records]}"
 
     def test_executor_does_not_warn_when_sample_error_rate_low(self, caplog):
         """Quiet runs must stay quiet — no warning for a small handful of
