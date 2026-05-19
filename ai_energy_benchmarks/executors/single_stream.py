@@ -472,9 +472,7 @@ class SingleStreamExecutor:
             # would inflate the metric when some requests lost power data —
             # numerator and denominator must come from the same set.
             energy_token_total = sum(r.total_tokens for r in energy_results)
-            tokens_per_joule = (
-                energy_token_total / total_energy_j if total_energy_j > 0 else None
-            )
+            tokens_per_joule = energy_token_total / total_energy_j if total_energy_j > 0 else None
             power_readings = [r.avg_power_watts for r in energy_results if r.avg_power_watts]
             avg_power = sum(power_readings) / len(power_readings) if power_readings else None
 
