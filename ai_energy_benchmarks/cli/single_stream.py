@@ -53,23 +53,6 @@ def detect_gpu_type() -> str:
     return "unknown"
 
 
-def detect_gpu_count() -> int:
-    """Return the number of visible NVIDIA GPUs (0 if nvidia-smi unavailable)."""
-    try:
-        result = subprocess.run(
-            ["nvidia-smi", "--query-gpu=count", "--format=csv,noheader"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        if result.returncode == 0:
-            # nvidia-smi prints the count for every GPU (one line each); take any
-            return int(result.stdout.strip().split("\n")[0])
-    except (FileNotFoundError, subprocess.TimeoutExpired, ValueError):
-        pass
-    return 0
-
-
 def build_meta_header(
     model: str,
     profile_name: str,
@@ -119,20 +102,31 @@ def request_result_to_jsonl_row(req: Any) -> Dict[str, Any]:
             "duration_seconds": round(req.request_duration_seconds, 4),
             "estimated": False,
         }
-    energy_j = req.energy_joules or 0.0
     output_tokens = req.completion_tokens or 0
     total_tokens = req.total_tokens or 0
     row: Dict[str, Any] = {
-        "energy_joules": round(energy_j, 4),
-        "avg_power_watts": round(req.avg_power_watts or 0.0, 1),
         "duration_seconds": round(req.request_duration_seconds, 4),
         "input_tokens": req.prompt_tokens,
         "output_tokens": output_tokens,
         "thinking_tokens": 0,
         "estimated": False,
-        "tokens_per_joule": round(total_tokens / energy_j, 4) if energy_j > 0 else 0,
-        "energy_per_useful_token": round(energy_j / output_tokens, 4) if output_tokens > 0 else 0,
     }
+    # Only emit energy fields when sampling actually produced data — emitting
+    # zeros for "no samples captured" silently looks like a successful 0 J run.
+    if req.energy_joules is not None:
+        energy_j = req.energy_joules
+        row["energy_joules"] = round(energy_j, 4)
+        row["avg_power_watts"] = round(req.avg_power_watts or 0.0, 1)
+        row["tokens_per_joule"] = round(total_tokens / energy_j, 4) if energy_j > 0 else 0
+        row["energy_per_useful_token"] = (
+            round(energy_j / output_tokens, 4) if output_tokens > 0 else 0
+        )
+    else:
+        row["energy_joules"] = None
+        row["avg_power_watts"] = None
+        row["tokens_per_joule"] = None
+        row["energy_per_useful_token"] = None
+        row["energy_attribution"] = "no-samples"
     return row
 
 

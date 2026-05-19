@@ -12,7 +12,7 @@ in flight. The executor enforces that by ignoring the profile's
 `concurrency` setting and running prompts serially.
 
 Workflow per request:
-    1. Start a background `GpuPowerSampler` thread.
+    1. Start a fresh background `GpuPowerSampler` thread.
     2. POST one chat-completion to the vLLM endpoint synchronously.
     3. Stop the sampler. Compute energy = avg_power * wall_clock_duration.
     4. Append a `RequestResult` populated from the response usage and the
@@ -24,7 +24,9 @@ deployments where the endpoint exposes `energy` in the response, use
 `EnergyAwareExecutor` instead.
 """
 
+import hashlib
 import json
+import random
 import subprocess
 import threading
 import time
@@ -35,7 +37,6 @@ from typing import List, Optional
 
 from ..profiles import LoadProfileConfig
 from .energy_aware import (
-    EnergyAwareExecutor,
     ProfileResult,
     RequestResult,
 )
@@ -55,6 +56,91 @@ If a query stalls beyond this, we drop the sample and continue. nvidia-smi
 occasionally blocks on contended GPUs; dropping a sample is preferable to
 hanging the entire benchmark.
 """
+
+# Base prompts for generating varied requests. Duplicated from
+# EnergyAwareExecutor.BASE_PROMPTS so this executor doesn't pull in the
+# aiohttp dependency just to share a list of strings.
+_BASE_PROMPTS = [
+    "Explain the concept of machine learning and its applications in modern technology.",
+    "Describe the process of photosynthesis and its importance in the ecosystem.",
+    "What are the key principles of object-oriented programming?",
+    "Discuss the history and significance of the Renaissance period.",
+    "Explain the fundamentals of quantum physics and quantum computing.",
+    "Describe the structure and function of DNA in living organisms.",
+    "What are the main causes and effects of climate change?",
+    "Explain the principles of supply and demand in economics.",
+    "Describe the process of cellular respiration in biological systems.",
+    "What are the key components of a computer operating system?",
+    "Explain the concept of neural networks and deep learning.",
+    "Describe the major events of World War II and their global impact.",
+    "What are the fundamental principles of thermodynamics?",
+    "Explain how blockchain technology works and its applications.",
+    "Describe the structure and function of the human immune system.",
+]
+
+_CONTENT_BLOCKS = [
+    "Please provide detailed examples and explanations with specific use cases.",
+    "Include practical applications and real-world scenarios where this applies.",
+    "Discuss the historical context, development, and evolution over time.",
+    "Explain the technical details, mechanisms, and underlying principles involved.",
+    "Compare and contrast with related concepts, alternatives, and similar approaches.",
+    "Analyze the advantages, disadvantages, trade-offs, and considerations.",
+    "Provide step-by-step instructions, processes, and implementation guidelines.",
+    "Include relevant statistics, data, research findings, and empirical evidence.",
+    "Discuss future trends, developments, predictions, and potential innovations.",
+    "Explain the impact on society, industry, economics, and various stakeholders.",
+    "Describe the key components, architecture, structure, and organization.",
+    "Outline the methodology, approach, framework, and best practices.",
+    "Address common challenges, problems, limitations, and how to overcome them.",
+    "Discuss security implications, risks, vulnerabilities, and mitigation strategies.",
+    "Explain performance characteristics, optimization techniques, and efficiency.",
+    "Cover testing strategies, validation methods, and quality assurance approaches.",
+    "Describe integration patterns, compatibility considerations, and interoperability.",
+    "Discuss scalability aspects, growth considerations, and capacity planning.",
+    "Explain maintenance requirements, operational procedures, and lifecycle management.",
+    "Address regulatory compliance, standards, certifications, and legal considerations.",
+]
+
+
+def _generate_prompts(
+    count: int,
+    input_token_range: tuple,
+    seed: Optional[int],
+    rng: random.Random,
+) -> List[str]:
+    """Generate deterministic prompts matching EnergyAwareExecutor's format.
+
+    Standalone helper (no aiohttp dependency) so SingleStreamExecutor can
+    run in minimal installs. The output is character-for-character
+    identical to EnergyAwareExecutor._generate_prompts for the same seed
+    and input_token_range — both executors draw from the same prompt
+    pool, so cross-executor comparisons remain apples-to-apples.
+    """
+    prompts: List[str] = []
+    min_tokens, max_tokens = input_token_range
+    for i in range(count):
+        base_prompt = _BASE_PROMPTS[i % len(_BASE_PROMPTS)]
+        if seed is not None:
+            unique_id = hashlib.md5(f"{seed}_{i}".encode()).hexdigest()[:8]
+        else:
+            unique_id = hashlib.md5(f"{time.time()}_{i}".encode()).hexdigest()[:8]
+        prompt = f"[Request {i + 1}/{count}, ID:{unique_id}] " + base_prompt
+
+        target_tokens = rng.randint(min_tokens, max_tokens)
+        estimated_tokens = len(prompt) // 4  # ~4 chars/token
+        block_index = 0
+        while estimated_tokens < target_tokens:
+            block = _CONTENT_BLOCKS[block_index % len(_CONTENT_BLOCKS)]
+            if block_index >= len(_CONTENT_BLOCKS):
+                variation = f" (aspect {block_index // len(_CONTENT_BLOCKS) + 1})"
+                block = block.rstrip(".") + variation + "."
+            prompt += " " + block
+            estimated_tokens = len(prompt) // 4
+            block_index += 1
+            if block_index > 200:
+                break
+        prompts.append(prompt)
+    return prompts
 
 
 class GpuPowerSampler:
@@ -82,9 +168,18 @@ class GpuPowerSampler:
         self._thread.start()
 
     def stop(self) -> None:
+        """Signal the sample loop to exit and wait for the thread to terminate.
+
+        The join timeout must exceed `NVIDIA_SMI_TIMEOUT_S` because the loop
+        body can block in `subprocess.run(nvidia-smi)` for up to that long.
+        A timeout shorter than NVIDIA_SMI_TIMEOUT_S can leave the thread
+        alive after stop() returns, which (together with sampler reuse)
+        causes cross-request sample contamination. Add a small interval
+        buffer for the post-call `_stop.wait(interval_s)` sleep.
+        """
         self._stop.set()
         if self._thread:
-            self._thread.join(timeout=2)
+            self._thread.join(timeout=NVIDIA_SMI_TIMEOUT_S + self.interval_s + 1.0)
 
     def _sample_loop(self) -> None:
         while not self._stop.is_set():
@@ -145,9 +240,7 @@ class SingleStreamExecutor:
         """
         self.seed = seed
         self.power_sample_interval_s = power_sample_interval_s
-        # Reuse EnergyAwareExecutor's prompt generation so single-stream and
-        # gateway runs draw from the same prompt pool.
-        self._prompt_helper = EnergyAwareExecutor(seed=seed)
+        self._random = random.Random(seed) if seed is not None else random.Random()
 
     def run(
         self,
@@ -171,8 +264,11 @@ class SingleStreamExecutor:
             ProfileResult with `individual_results` populated and energy
             fields computed from local power sampling.
         """
-        prompts = self._prompt_helper._generate_prompts(
-            profile.request_count, profile.input_token_range
+        prompts = _generate_prompts(
+            profile.request_count,
+            profile.input_token_range,
+            self.seed,
+            self._random,
         )
         max_tokens = profile.output_token_range[1]
 
@@ -181,10 +277,13 @@ class SingleStreamExecutor:
             endpoint = f"{endpoint}/v1"
 
         results: List[RequestResult] = []
-        sampler = GpuPowerSampler(interval_s=self.power_sample_interval_s)
-
         wall_start = time.perf_counter()
         for prompt in prompts:
+            # Fresh sampler per request prevents cross-request sample
+            # contamination if a prior nvidia-smi call is still in flight
+            # when stop() returns. Constructing a sampler is cheap (no
+            # threads spawned until start()).
+            sampler = GpuPowerSampler(interval_s=self.power_sample_interval_s)
             results.append(
                 self._send_one_request(
                     sampler, endpoint, model, api_key, prompt, max_tokens, timeout_seconds
@@ -255,8 +354,22 @@ class SingleStreamExecutor:
         duration = time.perf_counter() - t0
         sampler.stop()
 
-        avg_power = sampler.avg_power_watts
-        energy_j = avg_power * duration
+        # If nvidia-smi was missing, timed out, or returned unparseable
+        # output for every sample, we have no power data for this request.
+        # Reporting energy_joules=0 in that case would silently produce
+        # invalid benchmark output (downstream would treat 0 J as real,
+        # not as missing). Leave energy fields None — downstream
+        # aggregation already filters by `energy_joules is not None`.
+        if not sampler.samples:
+            energy_j: Optional[float] = None
+            energy_kwh: Optional[float] = None
+            avg_power: Optional[float] = None
+            attribution: Optional[str] = None
+        else:
+            avg_power = sampler.avg_power_watts
+            energy_j = avg_power * duration
+            energy_kwh = energy_j / 3_600_000.0
+            attribution = "local-power-sampling"
 
         try:
             data = json.loads(body)
@@ -281,11 +394,11 @@ class SingleStreamExecutor:
             total_tokens=total_tokens,
             request_duration_seconds=duration,
             energy_joules=energy_j,
-            energy_kwh=energy_j / 3_600_000.0,
+            energy_kwh=energy_kwh,
             avg_power_watts=avg_power,
-            inference_duration_seconds=duration,
-            attribution_method="local-power-sampling",
-            attribution_ratio=1.0,
+            inference_duration_seconds=duration if energy_j is not None else None,
+            attribution_method=attribution,
+            attribution_ratio=1.0 if energy_j is not None else None,
             status_code=status,
         )
 
