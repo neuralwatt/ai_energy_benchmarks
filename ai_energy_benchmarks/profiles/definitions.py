@@ -222,6 +222,50 @@ def get_long_tokens_profile() -> LoadProfileConfig:
     )
 
 
+# Single-stream profiles - concurrency=1, one request at a time. Designed to
+# match the methodology of public intelligence benchmarks (e.g. Artificial
+# Analysis) that issue prompts serially without batching. Useful as a clean
+# per-request energy baseline that is comparable across hardware without
+# concurrency confounding the measurement.
+def get_single_stream_light_profile() -> LoadProfileConfig:
+    """Get the single-stream light profile (concurrency=1, short outputs)."""
+    return LoadProfileConfig(
+        name="single_stream_light",
+        description="Single-stream light - concurrency=1, short outputs (~100-200 tokens)",
+        concurrency=1,
+        request_count=30,
+        input_token_range=(50, 150),
+        output_token_range=(100, 200),
+        cache_strategy="minimal",
+    )
+
+
+def get_single_stream_moderate_profile() -> LoadProfileConfig:
+    """Get the single-stream moderate profile (concurrency=1, medium outputs)."""
+    return LoadProfileConfig(
+        name="single_stream_moderate",
+        description="Single-stream moderate - concurrency=1, medium outputs (~200-500 tokens)",
+        concurrency=1,
+        request_count=30,
+        input_token_range=(50, 150),
+        output_token_range=(200, 500),
+        cache_strategy="minimal",
+    )
+
+
+def get_single_stream_heavy_profile() -> LoadProfileConfig:
+    """Get the single-stream heavy profile (concurrency=1, long outputs)."""
+    return LoadProfileConfig(
+        name="single_stream_heavy",
+        description="Single-stream heavy - concurrency=1, long outputs (~500-1000 tokens)",
+        concurrency=1,
+        request_count=20,
+        input_token_range=(50, 150),
+        output_token_range=(500, 1000),
+        cache_strategy="minimal",
+    )
+
+
 # Profile registry - lazy initialized and cached
 _PROFILES_CACHE: Optional[Dict[str, Union[LoadProfileConfig, MultiPhaseProfile]]] = None
 
@@ -246,6 +290,10 @@ def _get_profiles_registry() -> MappingProxyType:
             "short_tokens": get_short_tokens_profile(),
             "long_input_short_output": get_long_input_short_output_profile(),
             "long_tokens": get_long_tokens_profile(),
+            # Single-stream profiles (concurrency=1, AA-comparable)
+            "single_stream_light": get_single_stream_light_profile(),
+            "single_stream_moderate": get_single_stream_moderate_profile(),
+            "single_stream_heavy": get_single_stream_heavy_profile(),
         }
     return MappingProxyType(_PROFILES_CACHE)
 
@@ -254,7 +302,9 @@ def get_profile(name: str) -> Union[LoadProfileConfig, MultiPhaseProfile]:
     """Get a profile by name.
 
     Args:
-        name: Profile name (light, moderate, heavy, stress, multiphase, pattern, power_test)
+        name: Profile name (light, moderate, heavy, stress, multiphase, pattern,
+            power_test, short_tokens, long_input_short_output, long_tokens,
+            single_stream_light, single_stream_moderate, single_stream_heavy)
 
     Returns:
         LoadProfileConfig or MultiPhaseProfile
@@ -310,5 +360,8 @@ __all__ = [
     "get_short_tokens_profile",
     "get_long_input_short_output_profile",
     "get_long_tokens_profile",
+    "get_single_stream_light_profile",
+    "get_single_stream_moderate_profile",
+    "get_single_stream_heavy_profile",
     "PROFILES",
 ]

@@ -171,7 +171,7 @@ class VLLMBackend(Backend):
             formatted_prompt = self.format_harmony_prompt(prompt, reasoning_effort)
             print(f"  Using Harmony format with {reasoning_effort} reasoning")
 
-        payload = {
+        payload: Dict[str, Any] = {
             "model": self.model,
             "messages": [{"role": "user", "content": formatted_prompt}],
             "max_tokens": max_tokens,
