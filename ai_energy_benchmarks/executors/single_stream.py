@@ -131,9 +131,11 @@ def _generate_prompts(
     for i in range(count):
         base_prompt = _BASE_PROMPTS[i % len(_BASE_PROMPTS)]
         if seed is not None:
-            unique_id = hashlib.md5(f"{seed}_{i}".encode()).hexdigest()[:8]
+            unique_id = hashlib.md5(f"{seed}_{i}".encode(), usedforsecurity=False).hexdigest()[:8]
         else:
-            unique_id = hashlib.md5(f"{time.time()}_{i}".encode()).hexdigest()[:8]
+            unique_id = hashlib.md5(
+                f"{time.time()}_{i}".encode(), usedforsecurity=False
+            ).hexdigest()[:8]
         prompt = f"[Request {i + 1}/{count}, ID:{unique_id}] " + base_prompt
 
         target_tokens = rng.randint(min_tokens, max_tokens)
@@ -220,6 +222,15 @@ class GpuPowerSampler:
                         raise ValueError("nvidia-smi returned no GPU lines")
                     self.samples.append(sum(float(line) for line in lines))
                 else:
+                    # Log stderr at debug so operators can diagnose root cause
+                    # (driver/NVML state, permissions, etc.). Without this, the
+                    # 25%-error warning tells them *that* sampling failed but
+                    # not *why*.
+                    logger.debug(
+                        "nvidia-smi failed (rc=%d): %s",
+                        result.returncode,
+                        result.stderr.strip(),
+                    )
                     self.sample_errors += 1
             except (ValueError, subprocess.TimeoutExpired, OSError):
                 # ValueError: parse failure
