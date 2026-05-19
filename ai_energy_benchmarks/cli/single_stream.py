@@ -75,6 +75,7 @@ def build_meta_header(
     model: str,
     profile_name: str,
     args: argparse.Namespace,
+    serving_host: str | None = None,
 ) -> Dict[str, Any]:
     """Build the `_meta` JSONL header row.
 
@@ -100,7 +101,12 @@ def build_meta_header(
         "measurement_mode": "local-power-sampling",
         "energy_collector": "nvidia-smi",
         "power_sample_interval_s": args.power_sample_interval,
-        "serving_host": args.endpoint,
+        # Prefer the normalized endpoint returned by the executor — it has
+        # been canonicalized (rstrip("/"), `/v1` appended if missing), so
+        # the meta matches what was actually hit. Falls back to the raw
+        # argparse value when the caller didn't pass an executor result
+        # (e.g. test scenarios building a header in isolation).
+        "serving_host": serving_host if serving_host is not None else args.endpoint,
         "benchmark_host": os.environ.get("HOSTNAME", platform.node() or "unknown"),
     }
     if args.quantization:
@@ -122,6 +128,12 @@ def request_result_to_jsonl_row(req: Any) -> Dict[str, Any]:
         }
         if req.sample_errors is not None:
             row_err["sample_errors"] = req.sample_errors
+        # Surface the numeric HTTP status so downstream consumers can
+        # group/filter without regex-parsing the stringified error message.
+        # status_code is only set on the HTTPError path; transport-level
+        # failures (URLError, connection refused) leave it as None.
+        if req.status_code is not None:
+            row_err["status_code"] = req.status_code
         return row_err
     output_tokens = req.completion_tokens or 0
     total_tokens = req.total_tokens or 0
@@ -138,9 +150,16 @@ def request_result_to_jsonl_row(req: Any) -> Dict[str, Any]:
         energy_j = req.energy_joules
         row["energy_joules"] = round(energy_j, 4)
         row["avg_power_watts"] = round(req.avg_power_watts or 0.0, 1)
-        row["tokens_per_joule"] = round(total_tokens / energy_j, 4) if energy_j > 0 else 0
+        # tokens_per_joule and energy_per_useful_token are mathematically
+        # undefined when their denominator is 0 (no tokens generated, or no
+        # energy sampled). Emit `None` rather than `0` so downstream avg
+        # computations can skip them — averaging 0s would drag the metric
+        # toward zero and mask a measurement failure.
+        row["tokens_per_joule"] = (
+            round(total_tokens / energy_j, 4) if energy_j > 0 and total_tokens > 0 else None
+        )
         row["energy_per_useful_token"] = (
-            round(energy_j / output_tokens, 4) if output_tokens > 0 else 0
+            round(energy_j / output_tokens, 4) if output_tokens > 0 else None
         )
     else:
         row["energy_joules"] = None
@@ -287,7 +306,7 @@ Profiles available (single-stream only — concurrency is always 1 here):
         short_profile = args.profile.replace("single_stream_", "")
         output_path = Path(args.output_dir) / f"{safe_model}_{short_profile}_{timestamp}.jsonl"
 
-    meta = build_meta_header(args.model, args.profile, args)
+    meta = build_meta_header(args.model, args.profile, args, serving_host=result.endpoint)
     write_jsonl_output(output_path, meta, result.individual_results)
 
     print(f"\nSaved {result.successful_requests} measurements → {output_path}")
