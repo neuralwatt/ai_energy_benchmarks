@@ -481,6 +481,62 @@ class TestSingleStreamExecutor:
             result.total_tokens / result.total_energy_joules
         )
 
+    def test_aggregate_tokens_per_joule_uses_matched_subset(self):
+        """tokens_per_joule must divide tokens from the SAME requests whose
+        energy is in the denominator. Mixing all-successful-tokens over
+        energy-subset-joules inflates efficiency when some requests lost
+        power data.
+
+        Regression: a glm-5.1-flex review caught that the aggregate summed
+        `total_tokens` over all successful requests but `total_energy_j`
+        over only the subset with energy data, making the metric look
+        better than reality.
+        """
+        from ai_energy_benchmarks.executors.energy_aware import RequestResult
+
+        executor = SingleStreamExecutor(seed=42)
+
+        # 8 requests with energy data: 10_000 tokens, 2000 J → 5 tok/J
+        # 2 successful requests without energy: 2000 tokens
+        # Buggy formula: 12_000 / 2000 = 6 tok/J  (inflated by 20%)
+        # Correct formula: 10_000 / 2000 = 5 tok/J
+        results: List[RequestResult] = []
+        for _ in range(8):
+            results.append(
+                RequestResult(
+                    prompt_tokens=625,
+                    completion_tokens=625,
+                    total_tokens=1250,
+                    request_duration_seconds=1.0,
+                    energy_joules=250.0,
+                    avg_power_watts=250.0,
+                )
+            )
+        for _ in range(2):
+            results.append(
+                RequestResult(
+                    prompt_tokens=500,
+                    completion_tokens=500,
+                    total_tokens=1000,
+                    request_duration_seconds=1.0,
+                    energy_joules=None,
+                    avg_power_watts=None,
+                )
+            )
+
+        aggregated = executor._aggregate_results(
+            profile_name="test",
+            model="test-model",
+            endpoint="http://localhost:8000/v1",
+            results=results,
+            wall_clock_seconds=10.0,
+        )
+        # 8 energy requests × 250 J = 2000 J. 8 energy requests × 1250 tok = 10_000 tok.
+        assert aggregated.total_energy_joules == pytest.approx(2000.0)
+        assert aggregated.tokens_per_joule == pytest.approx(5.0)
+        # total_tokens still spans all 10 successful requests
+        assert aggregated.total_tokens == 12_000
+
 
 class TestCliOutputFormat:
     """Verify the CLI writes the JSONL shape downstream consumers expect."""
