@@ -456,6 +456,46 @@ class TestSingleStreamExecutor:
 
         assert not any("sample-error rate" in r.message for r in caplog.records)
 
+    def test_json_decode_error_preserves_energy_and_sample_errors(self):
+        """When the HTTP response is 200 but the body isn't valid JSON, the
+        RequestResult must still carry the energy measurement and
+        sample_errors. The sampler ran cleanly across the request — that
+        data is valid and downstream auditing depends on it.
+
+        Regression: a glm-5.1-flex review caught that this code path returned
+        a bare error result, silently dropping the already-computed
+        energy_joules / avg_power_watts / sample_errors fields.
+        """
+        profile = _make_profile(request_count=1)
+        executor = SingleStreamExecutor(seed=42)
+
+        def _start_with_data(self):
+            self.samples = [250.0, 250.0, 250.0]
+            self.sample_errors = 2
+
+        with (
+            patch.object(GpuPowerSampler, "start", _start_with_data),
+            patch.object(GpuPowerSampler, "stop", lambda self: None),
+            patch.object(
+                GpuPowerSampler,
+                "avg_power_watts",
+                new=property(lambda self: 250.0),
+            ),
+            patch(
+                "urllib.request.urlopen",
+                return_value=_FakeUrlopenResponse(b"not valid json {{{"),
+            ),
+        ):
+            result = executor.run(profile, "http://localhost:8000/v1", "test-model")
+
+        req = result.individual_results[0]
+        assert req.error is not None and "JSON decode" in req.error
+        assert req.sample_errors == 2
+        assert req.avg_power_watts == 250.0
+        assert req.energy_joules is not None
+        assert req.energy_joules > 0
+        assert req.attribution_method == "local-power-sampling"
+
     def test_aggregate_tokens_per_joule_uses_total_tokens(self, deterministic_sampler):
         """tokens_per_joule = sum(total_tokens) / sum(energy_joules).
 

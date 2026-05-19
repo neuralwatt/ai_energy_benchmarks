@@ -405,11 +405,23 @@ class SingleStreamExecutor:
         try:
             data = json.loads(body)
         except json.JSONDecodeError as e:
+            # The HTTP request completed and the sampler ran cleanly — the
+            # energy measurement is still valid even though we can't parse
+            # token counts. Carry energy + sample_errors through so the
+            # downstream auditing stays consistent with the HTTP-error and
+            # generic-exception paths above.
             return RequestResult(
                 prompt_tokens=0,
                 completion_tokens=0,
                 total_tokens=0,
                 request_duration_seconds=duration,
+                energy_joules=energy_j,
+                energy_kwh=energy_kwh,
+                avg_power_watts=avg_power,
+                inference_duration_seconds=duration if energy_j is not None else None,
+                attribution_method=attribution,
+                attribution_ratio=1.0 if energy_j is not None else None,
+                sample_errors=sample_errors,
                 error=f"JSON decode: {e}",
                 status_code=status,
             )
