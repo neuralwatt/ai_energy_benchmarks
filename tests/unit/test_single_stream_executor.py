@@ -143,6 +143,46 @@ class TestGpuPowerSampler:
         assert sampler.samples == []
         assert sampler.sample_errors > 0
 
+    def test_sample_loop_sums_across_multiple_gpus(self):
+        """nvidia-smi emits one line per GPU; the sampler must sum them.
+
+        Regression: previously the loop took only `split("\n")[0]` and
+        silently undercounted energy on `--tensor-parallel N` runs by
+        a factor of ~N. The CLI accepts `--tensor-parallel` without any
+        warning, so a TP=4 H100 run would have looked like a TP=1 run
+        at 1/4 the real power draw.
+        """
+        sampler = GpuPowerSampler(interval_s=0.01)
+        # Simulate a 4-GPU node — nvidia-smi prints one line per GPU.
+        fake_result = MagicMock(returncode=0, stdout="120.5\n118.0\n121.3\n119.2\n")
+        with patch("subprocess.run", return_value=fake_result):
+            sampler.start()
+            import time
+
+            time.sleep(0.05)
+            sampler.stop()
+        assert sampler.samples, "expected at least one sample"
+        # Each sample must equal the sum of all 4 GPU readings.
+        expected = 120.5 + 118.0 + 121.3 + 119.2
+        for s in sampler.samples:
+            assert s == pytest.approx(expected, rel=1e-9)
+
+    def test_sample_loop_treats_empty_stdout_as_error(self):
+        """If nvidia-smi exits 0 but emits no lines (rare), we count it as
+        a sample error instead of recording 0 W. Recording 0 W would drag
+        the per-request average down and mask a measurement failure.
+        """
+        sampler = GpuPowerSampler(interval_s=0.01)
+        fake_result = MagicMock(returncode=0, stdout="\n")
+        with patch("subprocess.run", return_value=fake_result):
+            sampler.start()
+            import time
+
+            time.sleep(0.05)
+            sampler.stop()
+        assert sampler.samples == []
+        assert sampler.sample_errors > 0
+
     def test_start_resets_sample_errors(self):
         """A re-used sampler must reset the error count between runs.
 
@@ -421,9 +461,9 @@ class TestSingleStreamExecutor:
         ):
             executor.run(profile, "http://localhost:8000/v1", "test-model")
 
-        assert any(
-            "sample-error rate" in r.message for r in caplog.records
-        ), f"expected sample-error warning, got: {[r.message for r in caplog.records]}"
+        assert any("sample-error rate" in r.message for r in caplog.records), (
+            f"expected sample-error warning, got: {[r.message for r in caplog.records]}"
+        )
 
     def test_executor_does_not_warn_when_sample_error_rate_low(self, caplog):
         """Quiet runs must stay quiet — no warning for a small handful of

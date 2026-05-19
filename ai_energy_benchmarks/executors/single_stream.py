@@ -157,9 +157,11 @@ class GpuPowerSampler:
     """Sample total GPU power draw in a background thread.
 
     Calls `nvidia-smi --query-gpu=power.draw` at a fixed interval and
-    averages all readings. Multi-GPU systems return the power of the
-    first GPU (index 0); a future enhancement could sum across GPUs for
-    multi-GPU vLLM tensor-parallel runs.
+    averages the per-sample readings. On multi-GPU systems (e.g. vLLM
+    `--tensor-parallel N`) the readings from every visible GPU are
+    summed at each sample so the per-request `avg_power_watts` reflects
+    total board power, not just GPU 0. A partial sample (one GPU's line
+    unparseable) is dropped entirely and counted as a sample error.
 
     Not thread-safe across multiple concurrent users — the intended
     usage is one sampler per request, in a single-stream loop.
@@ -206,8 +208,17 @@ class GpuPowerSampler:
                     timeout=NVIDIA_SMI_TIMEOUT_S,
                 )
                 if result.returncode == 0:
-                    first_line = result.stdout.strip().split("\n")[0]
-                    self.samples.append(float(first_line))
+                    # Sum power across every visible GPU. nvidia-smi emits one
+                    # line per GPU; for `--tensor-parallel N` the model spans
+                    # N GPUs and reporting only line 0 would undercount energy
+                    # by ~N×. A blank line (rare on multi-GPU boxes) is
+                    # skipped; a non-numeric line raises ValueError, which we
+                    # catch below and count as a sample error so a malformed
+                    # reading doesn't silently truncate the per-GPU sum.
+                    lines = [line for line in result.stdout.strip().split("\n") if line.strip()]
+                    if not lines:
+                        raise ValueError("nvidia-smi returned no GPU lines")
+                    self.samples.append(sum(float(line) for line in lines))
                 else:
                     self.sample_errors += 1
             except (ValueError, subprocess.TimeoutExpired, FileNotFoundError):
