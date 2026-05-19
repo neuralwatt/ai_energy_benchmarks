@@ -26,6 +26,7 @@ deployments where the endpoint exposes `energy` in the response, use
 
 import hashlib
 import json
+import logging
 import random
 import subprocess
 import threading
@@ -40,6 +41,8 @@ from .energy_aware import (
     ProfileResult,
     RequestResult,
 )
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_POWER_SAMPLE_INTERVAL_S = 0.1
 """Default GPU power sampling interval in seconds.
@@ -56,6 +59,13 @@ If a query stalls beyond this, we drop the sample and continue. nvidia-smi
 occasionally blocks on contended GPUs; dropping a sample is preferable to
 hanging the entire benchmark.
 """
+
+SAMPLE_ERROR_WARN_RATIO = 0.25
+"""Warn the operator when more than this fraction of nvidia-smi calls for a
+single request failed. At >25% error rate the avg-power figure has lost
+enough samples that the per-request energy number is no longer trustworthy,
+even though we still report it (since it's better than silently dropping
+the request)."""
 
 # Base prompts for generating varied requests. Duplicated from
 # EnergyAwareExecutor.BASE_PROMPTS so this executor doesn't pull in the
@@ -158,11 +168,16 @@ class GpuPowerSampler:
     def __init__(self, interval_s: float = DEFAULT_POWER_SAMPLE_INTERVAL_S):
         self.interval_s = interval_s
         self.samples: List[float] = []
+        # Track sample-loop failures separately so callers can audit data
+        # quality. Silent timeouts/parse errors would otherwise just shrink
+        # the average without any signal that some readings were lost.
+        self.sample_errors: int = 0
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
 
     def start(self) -> None:
         self.samples = []
+        self.sample_errors = 0
         self._stop.clear()
         self._thread = threading.Thread(target=self._sample_loop, daemon=True)
         self._thread.start()
@@ -193,11 +208,13 @@ class GpuPowerSampler:
                 if result.returncode == 0:
                     first_line = result.stdout.strip().split("\n")[0]
                     self.samples.append(float(first_line))
+                else:
+                    self.sample_errors += 1
             except (ValueError, subprocess.TimeoutExpired, FileNotFoundError):
                 # ValueError: parse failure
                 # TimeoutExpired: nvidia-smi stalled
                 # FileNotFoundError: nvidia-smi not on PATH (e.g. mock test env)
-                pass
+                self.sample_errors += 1
             self._stop.wait(self.interval_s)
 
     @property
@@ -337,6 +354,7 @@ class SingleStreamExecutor:
                 completion_tokens=0,
                 total_tokens=0,
                 request_duration_seconds=duration,
+                sample_errors=sampler.sample_errors,
                 error=f"HTTP {e.code}: {e.reason}",
                 status_code=e.code,
             )
@@ -348,11 +366,24 @@ class SingleStreamExecutor:
                 completion_tokens=0,
                 total_tokens=0,
                 request_duration_seconds=duration,
+                sample_errors=sampler.sample_errors,
                 error=str(e),
             )
 
         duration = time.perf_counter() - t0
         sampler.stop()
+
+        sample_errors = sampler.sample_errors
+        sample_count = len(sampler.samples)
+        total_attempts = sample_count + sample_errors
+        if total_attempts > 0 and sample_errors / total_attempts > SAMPLE_ERROR_WARN_RATIO:
+            logger.warning(
+                "nvidia-smi sample-error rate %.0f%% (%d errors / %d attempts) "
+                "for this request — energy figure may be unreliable",
+                100.0 * sample_errors / total_attempts,
+                sample_errors,
+                total_attempts,
+            )
 
         # If nvidia-smi was missing, timed out, or returned unparseable
         # output for every sample, we have no power data for this request.
@@ -399,6 +430,7 @@ class SingleStreamExecutor:
             inference_duration_seconds=duration if energy_j is not None else None,
             attribution_method=attribution,
             attribution_ratio=1.0 if energy_j is not None else None,
+            sample_errors=sample_errors,
             status_code=status,
         )
 

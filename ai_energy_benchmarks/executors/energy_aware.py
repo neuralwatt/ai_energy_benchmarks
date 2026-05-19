@@ -37,6 +37,11 @@ class RequestResult:
     inference_duration_seconds: Optional[float] = None  # From energy.duration_seconds
     attribution_method: Optional[str] = None
     attribution_ratio: Optional[float] = None
+    # Number of failed power samples during this request (None if not tracked
+    # by the executor). Useful for auditing measurement quality: a request
+    # that reports energy but had many sample errors should be treated with
+    # suspicion.
+    sample_errors: Optional[int] = None
     # Error tracking
     error: Optional[str] = None
     status_code: Optional[int] = None

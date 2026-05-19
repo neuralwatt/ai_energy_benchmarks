@@ -97,11 +97,14 @@ def build_meta_header(
 def request_result_to_jsonl_row(req: Any) -> Dict[str, Any]:
     """Convert a RequestResult to the JSONL row shape downstream expects."""
     if req.error is not None:
-        return {
+        row_err: Dict[str, Any] = {
             "error": req.error,
             "duration_seconds": round(req.request_duration_seconds, 4),
             "estimated": False,
         }
+        if req.sample_errors is not None:
+            row_err["sample_errors"] = req.sample_errors
+        return row_err
     output_tokens = req.completion_tokens or 0
     total_tokens = req.total_tokens or 0
     row: Dict[str, Any] = {
@@ -127,6 +130,10 @@ def request_result_to_jsonl_row(req: Any) -> Dict[str, Any]:
         row["tokens_per_joule"] = None
         row["energy_per_useful_token"] = None
         row["energy_attribution"] = "no-samples"
+    # Sample-error count lets downstream audit measurement quality even when
+    # the energy figure looks plausible.
+    if req.sample_errors is not None:
+        row["sample_errors"] = req.sample_errors
     return row
 
 
@@ -272,7 +279,13 @@ Profiles available (single-stream only — concurrency is always 1 here):
         print(f"  avg power:    {result.avg_power_watts:.1f} W")
         print(f"  tok/J:        {result.tokens_per_joule:.3f}")
 
-    sys.exit(0 if result.successful_requests > 0 else 1)
+    # Exit non-zero when ANY requests failed, not just when none succeeded.
+    # The old `successful_requests > 0` check treated 19/20 failures as a
+    # successful run, which made CI/orchestrators silently merge bad data.
+    # Callers who tolerate partial failure can compare counts themselves.
+    if result.failed_requests > 0 or result.successful_requests == 0:
+        sys.exit(1)
+    sys.exit(0)
 
 
 if __name__ == "__main__":

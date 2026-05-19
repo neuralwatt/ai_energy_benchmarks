@@ -124,6 +124,41 @@ class TestGpuPowerSampler:
             sampler.stop()
         assert sampler.samples == []
 
+    def test_sample_loop_counts_errors(self):
+        """Failed nvidia-smi calls must increment sample_errors so callers
+        can audit measurement quality. Without this counter a silent timeout
+        just shrinks the sample list and disappears.
+
+        Regression: a kimi reviewer flagged that the old loop swallowed
+        TimeoutExpired with no signal at all, leaving downstream unable to
+        tell a clean run apart from one where most readings were lost.
+        """
+        sampler = GpuPowerSampler(interval_s=0.01)
+        with patch("subprocess.run", side_effect=FileNotFoundError("no nvidia-smi")):
+            sampler.start()
+            import time
+
+            time.sleep(0.05)
+            sampler.stop()
+        assert sampler.samples == []
+        assert sampler.sample_errors > 0
+
+    def test_start_resets_sample_errors(self):
+        """A re-used sampler must reset the error count between runs.
+
+        Without this the count would grow unboundedly across requests when
+        a sampler is incidentally reused.
+        """
+        sampler = GpuPowerSampler(interval_s=0.01)
+        sampler.sample_errors = 42  # leftover from a prior run
+        with patch("subprocess.run", side_effect=FileNotFoundError("no nvidia-smi")):
+            sampler.start()
+            sampler.stop()
+        # Sample_errors was reset to 0 in start() and then incremented by the
+        # missing-binary path. The reset is the assertion of interest; the
+        # exact end value depends on loop timing, so check the reset happened.
+        assert sampler.sample_errors < 42
+
 
 class TestSingleStreamExecutor:
     """Tests for SingleStreamExecutor's request loop and aggregation."""
@@ -328,6 +363,99 @@ class TestSingleStreamExecutor:
         assert len(constructed) == 3
         assert len({id(s) for s in constructed}) == 3
 
+    def test_executor_propagates_sample_errors_into_request_result(self):
+        """The RequestResult must carry the sampler's error count so the
+        JSONL row downstream can audit measurement quality.
+        """
+        profile = _make_profile(request_count=1)
+        executor = SingleStreamExecutor(seed=42)
+
+        def _start_with_errors(self):
+            self.samples = [250.0]
+            self.sample_errors = 7
+
+        with (
+            patch.object(GpuPowerSampler, "start", _start_with_errors),
+            patch.object(GpuPowerSampler, "stop", lambda self: None),
+            patch.object(
+                GpuPowerSampler,
+                "avg_power_watts",
+                new=property(lambda self: 250.0),
+            ),
+            patch(
+                "urllib.request.urlopen",
+                return_value=_FakeUrlopenResponse(_make_chat_response()),
+            ),
+        ):
+            result = executor.run(profile, "http://localhost:8000/v1", "test-model")
+
+        req = result.individual_results[0]
+        assert req.sample_errors == 7
+
+    def test_executor_warns_when_sample_error_rate_high(self, caplog):
+        """A request where >25% of nvidia-smi calls failed must emit a warning
+        so the operator notices the energy figure isn't trustworthy.
+        """
+        import logging
+
+        profile = _make_profile(request_count=1)
+        executor = SingleStreamExecutor(seed=42)
+
+        def _start_with_high_error_rate(self):
+            self.samples = [250.0, 250.0]  # 2 good
+            self.sample_errors = 8  # 8 failed → 80% error rate
+
+        with (
+            patch.object(GpuPowerSampler, "start", _start_with_high_error_rate),
+            patch.object(GpuPowerSampler, "stop", lambda self: None),
+            patch.object(
+                GpuPowerSampler,
+                "avg_power_watts",
+                new=property(lambda self: 250.0),
+            ),
+            patch(
+                "urllib.request.urlopen",
+                return_value=_FakeUrlopenResponse(_make_chat_response()),
+            ),
+            caplog.at_level(logging.WARNING, logger="ai_energy_benchmarks.executors.single_stream"),
+        ):
+            executor.run(profile, "http://localhost:8000/v1", "test-model")
+
+        assert any("sample-error rate" in r.message for r in caplog.records), (
+            f"expected sample-error warning, got: {[r.message for r in caplog.records]}"
+        )
+
+    def test_executor_does_not_warn_when_sample_error_rate_low(self, caplog):
+        """Quiet runs must stay quiet — no warning for a small handful of
+        sample errors below the 25% threshold.
+        """
+        import logging
+
+        profile = _make_profile(request_count=1)
+        executor = SingleStreamExecutor(seed=42)
+
+        def _start_with_low_error_rate(self):
+            self.samples = [250.0] * 20  # 20 good
+            self.sample_errors = 1  # 1 failed → ~5% error rate
+
+        with (
+            patch.object(GpuPowerSampler, "start", _start_with_low_error_rate),
+            patch.object(GpuPowerSampler, "stop", lambda self: None),
+            patch.object(
+                GpuPowerSampler,
+                "avg_power_watts",
+                new=property(lambda self: 250.0),
+            ),
+            patch(
+                "urllib.request.urlopen",
+                return_value=_FakeUrlopenResponse(_make_chat_response()),
+            ),
+            caplog.at_level(logging.WARNING, logger="ai_energy_benchmarks.executors.single_stream"),
+        ):
+            executor.run(profile, "http://localhost:8000/v1", "test-model")
+
+        assert not any("sample-error rate" in r.message for r in caplog.records)
+
     def test_aggregate_tokens_per_joule_uses_total_tokens(self, deterministic_sampler):
         """tokens_per_joule = sum(total_tokens) / sum(energy_joules).
 
@@ -473,6 +601,65 @@ class TestCliOutputFormat:
         assert "energy_joules" not in row
         assert "tokens_per_joule" not in row
 
+    def test_request_row_includes_sample_errors_when_present(self):
+        """JSONL row must surface the sampler's error count so operators
+        and downstream code can audit measurement quality. Regression:
+        previously discarded with no way to spot a degraded measurement.
+        """
+        from ai_energy_benchmarks.cli import single_stream as cli
+        from ai_energy_benchmarks.executors.energy_aware import RequestResult
+
+        req = RequestResult(
+            prompt_tokens=30,
+            completion_tokens=70,
+            total_tokens=100,
+            request_duration_seconds=0.5,
+            energy_joules=125.0,
+            avg_power_watts=250.0,
+            sample_errors=3,
+        )
+        row = cli.request_result_to_jsonl_row(req)
+        assert row["sample_errors"] == 3
+
+    def test_request_row_omits_sample_errors_when_none(self):
+        """When the executor didn't track sample_errors (e.g. an older row)
+        the field must be omitted rather than emit a misleading 'null'.
+        """
+        from ai_energy_benchmarks.cli import single_stream as cli
+        from ai_energy_benchmarks.executors.energy_aware import RequestResult
+
+        req = RequestResult(
+            prompt_tokens=30,
+            completion_tokens=70,
+            total_tokens=100,
+            request_duration_seconds=0.5,
+            energy_joules=125.0,
+            avg_power_watts=250.0,
+            sample_errors=None,
+        )
+        row = cli.request_result_to_jsonl_row(req)
+        assert "sample_errors" not in row
+
+    def test_request_row_for_failed_request_carries_sample_errors(self):
+        """Even error rows benefit from the sample_errors count — it helps
+        distinguish "request failed because nvidia-smi was broken" from
+        "request failed for unrelated reasons."
+        """
+        from ai_energy_benchmarks.cli import single_stream as cli
+        from ai_energy_benchmarks.executors.energy_aware import RequestResult
+
+        req = RequestResult(
+            prompt_tokens=0,
+            completion_tokens=0,
+            total_tokens=0,
+            request_duration_seconds=1.2,
+            error="Connection refused",
+            sample_errors=4,
+        )
+        row = cli.request_result_to_jsonl_row(req)
+        assert row["error"] == "Connection refused"
+        assert row["sample_errors"] == 4
+
     def test_write_jsonl_output_layout(self, tmp_path):
         """File must start with a single meta row, then one row per request."""
         from ai_energy_benchmarks.cli import single_stream as cli
@@ -495,3 +682,74 @@ class TestCliOutputFormat:
         assert len(lines) == 2
         assert json.loads(lines[0])["_meta"] is True
         assert json.loads(lines[1])["energy_joules"] == 25.0
+
+
+class TestCliExitCode:
+    """The CLI must exit non-zero whenever any request failed.
+
+    Regression: the previous check `successful_requests > 0` treated 19/20
+    failures as a successful run, which let CI/orchestrators silently merge
+    bad data. A partial failure must surface as a non-zero exit code.
+    """
+
+    def _run_main_with_result(self, monkeypatch, tmp_path, successful: int, failed: int):
+        """Drive cli.main() with a stubbed-out executor that yields the
+        requested success/fail counts, and return the SystemExit code.
+        """
+        from ai_energy_benchmarks.cli import single_stream as cli
+        from ai_energy_benchmarks.executors.energy_aware import ProfileResult
+
+        sys_argv = [
+            "ai-energy-single-stream",
+            "--model",
+            "test-model",
+            "--output-dir",
+            str(tmp_path),
+        ]
+        monkeypatch.setattr("sys.argv", sys_argv)
+
+        from datetime import datetime, timezone
+
+        fake_result = ProfileResult(
+            profile_name="single_stream_light",
+            model="test-model",
+            endpoint="http://localhost:8000/v1",
+            timestamp=datetime.now(timezone.utc),
+            request_count=successful + failed,
+            successful_requests=successful,
+            failed_requests=failed,
+            concurrency=1,
+            total_tokens=0,
+            total_prompt_tokens=0,
+            total_completion_tokens=0,
+            total_wall_clock_seconds=1.0,
+            total_inference_seconds=1.0,
+            tokens_per_second=0.0,
+            individual_results=[],
+        )
+
+        class _FakeExecutor:
+            def __init__(self, *a, **k):
+                pass
+
+            def run(self, *a, **k):
+                return fake_result
+
+        monkeypatch.setattr(cli, "SingleStreamExecutor", _FakeExecutor)
+
+        with pytest.raises(SystemExit) as excinfo:
+            cli.main()
+        return excinfo.value.code
+
+    def test_exit_zero_when_all_requests_succeed(self, monkeypatch, tmp_path):
+        code = self._run_main_with_result(monkeypatch, tmp_path, successful=10, failed=0)
+        assert code == 0
+
+    def test_exit_nonzero_on_partial_failure(self, monkeypatch, tmp_path):
+        """One success out of twenty is NOT a passing run — exit non-zero."""
+        code = self._run_main_with_result(monkeypatch, tmp_path, successful=1, failed=19)
+        assert code != 0
+
+    def test_exit_nonzero_when_no_requests_succeed(self, monkeypatch, tmp_path):
+        code = self._run_main_with_result(monkeypatch, tmp_path, successful=0, failed=10)
+        assert code != 0
