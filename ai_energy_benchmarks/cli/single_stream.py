@@ -36,6 +36,20 @@ from ..profiles.definitions import get_profile, is_multi_phase
 SINGLE_STREAM_PROFILES = ["single_stream_light", "single_stream_moderate", "single_stream_heavy"]
 
 
+def _positive_float(raw: str) -> float:
+    """argparse type validator: accept only strictly positive floats.
+
+    A zero or negative sample interval would either busy-loop nvidia-smi
+    (interval=0) or feed a negative duration to threading.Event.wait()
+    where behavior is implementation-defined. Reject up front instead
+    of producing nonsense measurements.
+    """
+    value = float(raw)
+    if value <= 0:
+        raise argparse.ArgumentTypeError(f"must be > 0 (got {raw!r})")
+    return value
+
+
 def detect_gpu_type() -> str:
     """Return normalized GPU model (e.g. 'A100', 'H200') from nvidia-smi."""
     try:
@@ -48,7 +62,11 @@ def detect_gpu_type() -> str:
         if result.returncode == 0:
             raw = result.stdout.strip().split("\n")[0]
             return raw.replace("NVIDIA ", "").replace("-", " ")
-    except (FileNotFoundError, subprocess.TimeoutExpired):
+    except (subprocess.TimeoutExpired, OSError):
+        # OSError covers FileNotFoundError (binary missing) and
+        # PermissionError (binary not executable in restricted envs).
+        # In both cases we want a graceful "unknown" fallback rather
+        # than aborting meta-header construction.
         pass
     return "unknown"
 
@@ -213,7 +231,7 @@ Profiles available (single-stream only — concurrency is always 1 here):
     )
     parser.add_argument(
         "--power-sample-interval",
-        type=float,
+        type=_positive_float,
         default=DEFAULT_POWER_SAMPLE_INTERVAL_S,
         help=f"GPU power sample interval in seconds (default: {DEFAULT_POWER_SAMPLE_INTERVAL_S})",
     )

@@ -143,6 +143,27 @@ class TestGpuPowerSampler:
         assert sampler.samples == []
         assert sampler.sample_errors > 0
 
+    def test_sample_loop_handles_permission_error(self):
+        """nvidia-smi present but not executable must not kill the sampler.
+
+        Regression: previously the loop caught only FileNotFoundError, so
+        PermissionError (a different OSError subclass — e.g. restrictive
+        container seccomp or a bind-mounted binary without +x) would
+        escape the handler and terminate the background sampler thread
+        with an unhandled exception. The request would then report
+        energy_joules=None with sample_errors still at 0 — no audit
+        trail that anything went wrong.
+        """
+        sampler = GpuPowerSampler(interval_s=0.01)
+        with patch("subprocess.run", side_effect=PermissionError("no exec")):
+            sampler.start()
+            import time
+
+            time.sleep(0.05)
+            sampler.stop()
+        assert sampler.samples == []
+        assert sampler.sample_errors > 0
+
     def test_sample_loop_sums_across_multiple_gpus(self):
         """nvidia-smi emits one line per GPU; the sampler must sum them.
 

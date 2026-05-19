@@ -221,10 +221,16 @@ class GpuPowerSampler:
                     self.samples.append(sum(float(line) for line in lines))
                 else:
                     self.sample_errors += 1
-            except (ValueError, subprocess.TimeoutExpired, FileNotFoundError):
+            except (ValueError, subprocess.TimeoutExpired, OSError):
                 # ValueError: parse failure
                 # TimeoutExpired: nvidia-smi stalled
-                # FileNotFoundError: nvidia-smi not on PATH (e.g. mock test env)
+                # OSError: covers FileNotFoundError (binary missing on PATH,
+                # e.g. mock test envs) AND PermissionError (binary present
+                # but not executable, e.g. restrictive container seccomp /
+                # bind-mount without +x). Catching only FileNotFoundError
+                # would let PermissionError kill the background sampler
+                # thread silently, leaving the request with no energy
+                # measurement and no `sample_errors` audit trail.
                 self.sample_errors += 1
             self._stop.wait(self.interval_s)
 
