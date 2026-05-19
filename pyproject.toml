@@ -81,6 +81,7 @@ Issues = "https://github.com/neuralwatt/ai_energy_benchmarks/issues"
 
 [project.scripts]
 ai-energy-profile = "ai_energy_benchmarks.cli.profile:main"
+ai-energy-single-stream = "ai_energy_benchmarks.cli.single_stream:main"
 
 [tool.setuptools.dynamic]
 version = {file = "VERSION.txt"}
